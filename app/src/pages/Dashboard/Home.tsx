@@ -11,14 +11,14 @@ type ColorTheme = {
 
 const colorThemes: ColorTheme[] = [
   {
-    name: "TailAdmin 기본",
+    name: "기본",
     main: "#465fff",
     sub: "#9cb9ff",
     bg: "#ffffff",
     font: "#101828",
   },
   {
-    name: "커스텀",
+    name: "한국MSD",
     main: "#3B9189",
     sub: "#7DCAC3",
     bg: "#ECECEC",

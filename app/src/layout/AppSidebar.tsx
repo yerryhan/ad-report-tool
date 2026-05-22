@@ -78,11 +78,11 @@ const AppSidebar: React.FC = () => {
         <Link to="/">
           {isVisible ? (
             <span className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">
-              AD Report
+              한컴케어링크 Report
             </span>
           ) : (
             <span className="text-sm font-bold text-gray-900 dark:text-white">
-              AD
+              한컴
             </span>
           )}
         </Link>
