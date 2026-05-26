@@ -3,17 +3,20 @@ import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
 import DataUpload from "./pages/DataManagement/DataUpload";
+import { ColorThemeProvider } from "./context/ColorThemeContext";
 
 export default function App() {
   return (
-    <Router>
-      <ScrollToTop />
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route index path="/" element={<Home />} />
-          <Route path="/data/upload" element={<DataUpload />} />
-        </Route>
-      </Routes>
-    </Router>
+    <ColorThemeProvider>
+      <Router>
+        <ScrollToTop />
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index path="/" element={<Home />} />
+            <Route path="/data/upload" element={<DataUpload />} />
+          </Route>
+        </Routes>
+      </Router>
+    </ColorThemeProvider>
   );
 }
