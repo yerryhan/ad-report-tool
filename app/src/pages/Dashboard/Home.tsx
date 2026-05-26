@@ -13,28 +13,29 @@ export default function Home() {
         description="광고 리포트 자동 생성 대시보드"
       />
       <div className="h-full flex flex-col">
+        {/* Page Top Bar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {formattedDate}
+          </h1>
+          <button
+            onClick={() => {
+              /* PDF download logic will be added later */
+            }}
+            className="flex items-center gap-2 h-8 px-4 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors"
+            aria-label="PDF 다운로드"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M12 16L7 11H10V4H14V11H17L12 16Z" fill="currentColor" />
+              <path d="M20 18H4V20H20V18Z" fill="currentColor" />
+            </svg>
+            다운로드
+          </button>
+        </div>
+
         {/* PDF Preview Area */}
         <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-800">
           <div className="flex flex-col items-center py-8 px-4 gap-6">
-            {/* Title row */}
-            <div className="w-full flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {formattedDate}
-              </h2>
-              <button
-                onClick={() => {
-                  /* PDF download logic will be added later */
-                }}
-                className="flex items-center gap-2 h-9 px-4 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors"
-                aria-label="PDF 다운로드"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 16L7 11H10V4H14V11H17L12 16Z" fill="currentColor" />
-                  <path d="M20 18H4V20H20V18Z" fill="currentColor" />
-                </svg>
-                다운로드
-              </button>
-            </div>
 
             {[1, 2, 3].map((page) => (
               <div

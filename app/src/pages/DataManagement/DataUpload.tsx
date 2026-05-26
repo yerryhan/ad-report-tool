@@ -1,6 +1,10 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { useNavigate } from "react-router";
 import PageMeta from "../../components/common/PageMeta";
+import { isGadaFile, parseGadaExcel } from "../../utils/gadaExcelParser";
+import { useGadaData } from "../../context/GadaDataContext";
+import type { GadaExcelData } from "../../types/gada";
 
 const HEADERS = ["영역", "PV", "UV", "클릭수"];
 const ROW_LABELS = [
@@ -11,11 +15,9 @@ const ROW_LABELS = [
   "예약정보 및 변경 페이지",
   "병원 둘러보기 페이지",
 ];
-
 const DATA_COLS = 3;
 const initialCellData = () =>
   Array.from({ length: ROW_LABELS.length }, () => Array(DATA_COLS).fill(""));
-
 type CellData = string[][];
 
 function DataTable({
@@ -88,14 +90,71 @@ function DataTable({
   );
 }
 
+// 파싱 결과 미리보기 카드
+function GadaParsePreview({ data }: { data: GadaExcelData }) {
+  const totalReservations = data.reservations.length;
+  const totalCompanies = data.companyStats.length;
+  const totalHospitals =
+    data.mainHospitals.length + (data.otherHospitals.length > 0 ? 1 : 0);
+
+  return (
+    <div className="flex flex-col gap-3 w-full">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M10 3L5 9L2 6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+          가다실 {data.month}월 통계 파싱 완료
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "예약 건수", value: `${totalReservations}건` },
+          { label: "고객사 수", value: `${totalCompanies}개` },
+          { label: "예약 병원", value: `${totalHospitals}개` },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2 text-center"
+          >
+            <p className="text-xs text-gray-500 dark:text-gray-400">{item.label}</p>
+            <p className="mt-0.5 text-base font-bold text-gray-800 dark:text-white">
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        * 성명은 가운데 글자 마스킹, 생년월일은 연도만 보존 처리 완료
+      </p>
+    </div>
+  );
+}
+
 export default function DataUpload() {
+  // ── 기존 상태 ───────────────────────────────────────────────────────
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [rawDigits, setRawDigits] = useState("");
   const [cellDataLeft, setCellDataLeft] = useState<CellData>(initialCellData);
   const [cellDataRight, setCellDataRight] = useState<CellData>(initialCellData);
 
-  // Ghost text 포맷 계산
+  // ── 가다실 엑셀 파싱 상태 ────────────────────────────────────────────
+  const [gadaParsed, setGadaParsed] = useState<GadaExcelData | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const { setGadaData, addUploadLog } = useGadaData();
+  const navigate = useNavigate();
+
+  // ── Ghost text 포맷 계산 ─────────────────────────────────────────────
   const year = rawDigits.slice(0, 4);
   const month = rawDigits.slice(4, 6);
   let typedStr: string;
@@ -128,17 +187,56 @@ export default function DataUpload() {
     console.log("저장:", typedStr, cellDataLeft, cellDataRight);
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) setPendingFile(acceptedFiles[0]);
+  // ── 드롭존: xlsx만 허용, 업로드 즉시 브라우저 메모리에서 파싱 ──────────
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    const file = acceptedFiles[0];
+    setPendingFile(file);
+    setGadaParsed(null);
+    setParseError(null);
+
+    if (isGadaFile(file.name)) {
+      setIsParsing(true);
+      try {
+        const parsed = await parseGadaExcel(file);
+        setGadaParsed(parsed);
+      } catch (err) {
+        setParseError(
+          "파싱 실패: " + (err instanceof Error ? err.message : String(err))
+        );
+      } finally {
+        setIsParsing(false);
+      }
+    }
   }, []);
 
   const handleUploadSave = () => {
     if (!pendingFile) return;
-    console.log("서버 업로드:", pendingFile);
+    const filename = pendingFile.name;
+    if (gadaParsed) {
+      setGadaData(gadaParsed);
+      addUploadLog(filename, "success", "admin");
+      setPendingFile(null);
+      setGadaParsed(null);
+      setParseError(null);
+      navigate("/marketing/hospital");
+      return;
+    }
+    // 파싱 실패 또는 미지원 파일
+    addUploadLog(filename, parseError ? "fail" : "pending", "admin");
     setPendingFile(null);
+    setParseError(null);
   };
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+        ".xlsx",
+      ],
+    },
+    multiple: false,
+  });
 
   const makeCellHandler =
     (setter: React.Dispatch<React.SetStateAction<CellData>>) =>
@@ -175,12 +273,13 @@ export default function DataUpload() {
               </span>
               <button
                 onClick={handleUploadSave}
-                disabled={!pendingFile}
+                disabled={!pendingFile || isParsing}
                 className="h-7 px-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 업로드 저장
               </button>
             </div>
+
             <div
               {...getRootProps()}
               className={`w-full cursor-pointer rounded-xl border-2 border-dashed transition-colors duration-200
@@ -189,19 +288,58 @@ export default function DataUpload() {
                   : "border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900 hover:border-brand-500 dark:hover:border-brand-500"
                 }
               `}
-              style={{ aspectRatio: "1920 / 320" }}
             >
               <input {...getInputProps()} />
-              <div className="flex h-full flex-col items-center justify-center gap-3">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                  <svg width="32" height="32" viewBox="0 0 29 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M14.5019 3.91699C14.2852 3.91699 14.0899 4.00891 13.953 4.15589L8.57363 9.53186C8.28065 9.82466 8.2805 10.2995 8.5733 10.5925C8.8661 10.8855 9.34097 10.8857 9.63396 10.5929L13.7519 6.47752V18.667C13.7519 19.0812 14.0877 19.417 14.5019 19.417C14.9161 19.417 15.2519 19.0812 15.2519 18.667V6.48234L19.3653 10.5929C19.6583 10.8857 20.1332 10.8855 20.426 10.5925C20.7188 10.2995 20.7186 9.82463 20.4256 9.53184L15.0838 4.19378C14.9463 4.02488 14.7367 3.91699 14.5019 3.91699ZM5.91626 18.667C5.91626 18.2528 5.58047 17.917 5.16626 17.917C4.75205 17.917 4.41626 18.2528 4.41626 18.667V21.8337C4.41626 23.0763 5.42362 24.0837 6.66626 24.0837H22.3339C23.5766 24.0837 24.5839 23.0763 24.5839 21.8337V18.667C24.5839 18.2528 24.2482 17.917 23.8339 17.917C23.4197 17.917 23.0839 18.2528 23.0839 18.667V21.8337C23.0839 22.2479 22.7482 22.5837 22.3339 22.5837H6.66626C6.25205 22.5837 5.91626 22.2479 5.91626 21.8337V18.667Z" />
-                  </svg>
-                </div>
-                {pendingFile ? (
-                  <span className="text-sm font-medium text-brand-500">{pendingFile.name}</span>
+              <div className="flex min-h-[120px] flex-col items-center justify-center gap-3 px-6 py-5">
+                {isParsing ? (
+                  <>
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      파일 분석 중…
+                    </span>
+                  </>
+                ) : gadaParsed ? (
+                  <GadaParsePreview data={gadaParsed} />
+                ) : parseError ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-sm font-medium text-red-500">
+                      {parseError}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      다시 파일을 드래그하거나 클릭해서 선택하세요
+                    </span>
+                  </div>
+                ) : pendingFile ? (
+                  <span className="text-sm font-medium text-brand-500">
+                    {pendingFile.name}
+                  </span>
                 ) : (
-                  <span className="text-sm text-gray-500 dark:text-gray-400">엑셀 파일 업로드(드래그 앤 드롭)</span>
+                  <>
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                      <svg
+                        width="28"
+                        height="28"
+                        viewBox="0 0 29 28"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="fill-current"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          clipRule="evenodd"
+                          d="M14.5019 3.91699C14.2852 3.91699 14.0899 4.00891 13.953 4.15589L8.57363 9.53186C8.28065 9.82466 8.2805 10.2995 8.5733 10.5925C8.8661 10.8855 9.34097 10.8857 9.63396 10.5929L13.7519 6.47752V18.667C13.7519 19.0812 14.0877 19.417 14.5019 19.417C14.9161 19.417 15.2519 19.0812 15.2519 18.667V6.48234L19.3653 10.5929C19.6583 10.8857 20.1332 10.8855 20.426 10.5925C20.7188 10.2995 20.7186 9.82463 20.4256 9.53184L15.0838 4.19378C14.9463 4.02488 14.7367 3.91699 14.5019 3.91699ZM5.91626 18.667C5.91626 18.2528 5.58047 17.917 5.16626 17.917C4.75205 17.917 4.41626 18.2528 4.41626 18.667V21.8337C4.41626 23.0763 5.42362 24.0837 6.66626 24.0837H22.3339C23.5766 24.0837 24.5839 23.0763 24.5839 21.8337V18.667C24.5839 18.2528 24.2482 17.917 23.8339 17.917C23.4197 17.917 23.0839 18.2528 23.0839 18.667V21.8337C23.0839 22.2479 22.7482 22.5837 22.3339 22.5837H6.66626C6.25205 22.5837 5.91626 22.2479 5.91626 21.8337V18.667Z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        엑셀 파일 업로드 (드래그 앤 드롭)
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                        지원 형식: 한국(MSD) 가다실 M월 통계.xlsx
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -212,13 +350,11 @@ export default function DataUpload() {
 
           {/* 데이터 입력 섹션 */}
           <div className="flex flex-col gap-3">
-            {/* 섹션 헤더: 레이블(좌) + 제목 입력·수정·저장(우) */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
                 데이터 입력
               </span>
               <div className="flex items-center gap-1.5">
-                {/* Ghost placeholder 제목 입력 */}
                 <div
                   className={`relative h-7 w-40 rounded-lg border transition-colors duration-200 overflow-hidden
                     ${isEditing
@@ -260,7 +396,6 @@ export default function DataUpload() {
               </div>
             </div>
 
-            {/* 표 2단 */}
             <div className="grid grid-cols-2 gap-4">
               <DataTable
                 title="전체 결과(로그인 무관)"
