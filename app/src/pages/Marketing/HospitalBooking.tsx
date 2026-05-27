@@ -63,9 +63,13 @@ export default function HospitalBooking() {
   const otherPct =
     totalCount > 0 ? Math.round((otherCount / totalCount) * 1000) / 10 : 0;
 
-  // 차트 데이터: 주요 병원만 (기타 병원은 우측 리스트로만 표시)
+  // 차트 데이터: 주요 병원만 — 예약 비율(%)로 표시
   const categories = mainHospitals.map((h) => h.hospital);
-  const values = mainHospitals.map((h) => h.count);
+  const pctValues = mainHospitals.map((h) =>
+    totalCount > 0
+      ? parseFloat(((h.count / totalCount) * 100).toFixed(1))
+      : 0
+  );
   const barColors = categories.map(() => currentTheme.main);
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -76,6 +80,7 @@ export default function HospitalBooking() {
         toolbar: { show: false },
         fontFamily: "Outfit, sans-serif",
         animations: { enabled: true, speed: 400 },
+        background: "transparent",
       },
       colors: barColors,
       plotOptions: {
@@ -88,7 +93,7 @@ export default function HospitalBooking() {
       },
       dataLabels: {
         enabled: true,
-        formatter: (val: number) => `${val}건`,
+        formatter: (val: number) => `${val}%`,
         style: {
           fontSize: "11px",
           fontWeight: "600",
@@ -107,34 +112,30 @@ export default function HospitalBooking() {
           },
           rotate: -35,
           trim: false,
-          maxHeight: 80,
+          maxHeight: 100,
         },
       },
       yaxis: {
         title: {
-          text: "예약 건수",
+          text: "예약 비율 (%)",
           style: { fontSize: "12px", color: "#9ca3af" },
         },
         labels: {
-          formatter: (v: number) => `${v}건`,
+          formatter: (v: number) => `${v}%`,
           style: { fontSize: "11px", colors: ["#9ca3af"] },
         },
+        min: 0,
       },
       legend: { show: false },
       grid: {
         borderColor: "#f3f4f6",
         yaxis: { lines: { show: true } },
         xaxis: { lines: { show: false } },
+        padding: { bottom: 20 },
       },
       tooltip: {
         y: {
-          formatter: (val: number) => {
-            const pct =
-              totalCount > 0
-                ? Math.round((val / totalCount) * 1000) / 10
-                : 0;
-            return `${val}건 (${pct}%)`;
-          },
+          formatter: (val: number) => `${val}%`,
         },
       },
     }),
@@ -143,7 +144,7 @@ export default function HospitalBooking() {
     [currentTheme.main, currentTheme.sub, JSON.stringify(categories)]
   );
 
-  const series = [{ name: "예약 건수", data: values }];
+  const series = [{ name: "예약 비율", data: pctValues }];
 
   return (
     <>
@@ -159,17 +160,14 @@ export default function HospitalBooking() {
           </h1>
         </div>
 
-        {/* 컨텐츠 */}
-        <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-6">
-          <div className="rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-sm">
+        {/* 컨텐츠 — 전체 흰색 배경 */}
+        <div className="flex-1 overflow-auto bg-white dark:bg-gray-800 px-6 pt-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm px-6 pt-6 pb-0">
 
             {/* 요약 배지 */}
             <div className="mb-5 flex items-center gap-3">
               <span className="text-sm font-semibold text-gray-800 dark:text-white">
-                병원별 예약 건수
-              </span>
-              <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">
-                총 {totalCount}건
+                병원별 예약 현황
               </span>
               <span
                 className="rounded-full px-3 py-0.5 text-xs font-medium text-white"
@@ -197,7 +195,7 @@ export default function HospitalBooking() {
                   options={options}
                   series={series}
                   type="bar"
-                  height={380}
+                  height={500}
                 />
               </div>
 
@@ -205,9 +203,9 @@ export default function HospitalBooking() {
               <div style={{ flex: "0 0 5%" }} />
 
               {/* ── 오른쪽: 기타 병원 목록 (30%) ─────────────────────── */}
-              <div style={{ flex: "0 0 30%" }} className="flex flex-col">
+              <div style={{ flex: "0 0 30%" }} className="flex flex-col pt-2">
                 {/* 기타 병원 헤더 */}
-                <div className="mb-3 flex items-center gap-2">
+                <div className="mb-2 flex items-center gap-2">
                   <span
                     className="h-3 w-3 shrink-0 rounded-sm"
                     style={{ backgroundColor: currentTheme.sub }}
@@ -217,19 +215,16 @@ export default function HospitalBooking() {
                   </span>
                   {otherCount > 0 && (
                     <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {otherCount}건 · {otherPct}%
+                      {otherPct}%
                     </span>
                   )}
                 </div>
 
                 {otherHospitals.length > 0 ? (
-                  <div className="flex flex-col gap-1 overflow-y-auto pr-1" style={{ maxHeight: 340 }}>
+                  <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
                     {otherHospitals.map((h, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800"
-                      >
-                        <span className="text-xs text-gray-700 dark:text-gray-300 leading-snug">
+                      <div key={i} className="py-px">
+                        <span className="text-[10px] leading-none text-gray-700 dark:text-gray-300">
                           {h.hospital}
                         </span>
                       </div>
@@ -238,19 +233,6 @@ export default function HospitalBooking() {
                 ) : (
                   <div className="flex flex-1 items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-800">
                     <p className="text-xs text-gray-400">기타 병원 없음</p>
-                  </div>
-                )}
-
-                {/* 기타 병원 합계 */}
-                {otherHospitals.length > 0 && (
-                  <div
-                    className="mt-3 flex items-center justify-between rounded-lg px-3 py-2 text-white"
-                    style={{ backgroundColor: currentTheme.sub }}
-                  >
-                    <span className="text-xs font-semibold">기타 합계</span>
-                    <span className="text-xs font-bold">
-                      {otherCount}건 ({otherPct}%)
-                    </span>
                   </div>
                 )}
               </div>

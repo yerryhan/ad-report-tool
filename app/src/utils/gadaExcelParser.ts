@@ -1,6 +1,8 @@
 import * as XLSX from 'xlsx';
 import type {
   AgeGroupData,
+  AgeGenderGroup,
+  GenderStats,
   GadaExcelData,
   ReservationRow,
   CompanyStatRow,
@@ -55,6 +57,88 @@ function toNum(v: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
+// ── 예약자 목록 → 성별·연령대 통계 계산 ─────────────────────────────────
+// - O열(birthYear=YYYY)로 나이 계산, P열(gender=F/M)로 성별 구분
+// - 패키지:추가항목 = 1:1.75 (1.5~2 중간값)으로 임의 분할
+function computeGenderStats(reservations: ReservationRow[]): GenderStats {
+  const currentYear = new Date().getFullYear();
+
+  const ageGroups: {
+    age20: AgeGenderGroup;
+    age30: AgeGenderGroup;
+    age40: AgeGenderGroup;
+    age50: AgeGenderGroup;
+    age60plus: AgeGenderGroup;
+  } = {
+    age20:    { male: 0, female: 0 },
+    age30:    { male: 0, female: 0 },
+    age40:    { male: 0, female: 0 },
+    age50:    { male: 0, female: 0 },
+    age60plus:{ male: 0, female: 0 },
+  };
+
+  let totalMale = 0;
+  let totalFemale = 0;
+
+  for (const r of reservations) {
+    const birthYearNum = parseInt(r.birthYear, 10);
+    if (isNaN(birthYearNum) || birthYearNum === 0) continue;
+
+    const age = currentYear - birthYearNum;
+    const genderCode = r.gender.trim().toUpperCase();
+    const isMale   = genderCode === 'M';
+    const isFemale = genderCode === 'F';
+    if (!isMale && !isFemale) continue;
+
+    if (isMale)   totalMale++;
+    else          totalFemale++;
+
+    let group: keyof typeof ageGroups | null = null;
+    if      (age >= 20 && age < 30) group = 'age20';
+    else if (age >= 30 && age < 40) group = 'age30';
+    else if (age >= 40 && age < 50) group = 'age40';
+    else if (age >= 50 && age < 60) group = 'age50';
+    else if (age >= 60)             group = 'age60plus';
+
+    if (group) {
+      if (isMale) ageGroups[group].male++;
+      else        ageGroups[group].female++;
+    }
+  }
+
+  const totalPeople = totalMale + totalFemale;
+  const ratio = 1.75; // 패키지:추가항목 = 1:1.75
+
+  const totalPackage    = totalPeople > 0 ? Math.round(totalPeople / (1 + ratio)) : 0;
+  const totalAdditional = totalPeople - totalPackage;
+
+  // 패키지/추가항목 각각 남녀 비율은 전체 비율 그대로 유지
+  const packageMale    = totalPeople > 0 ? Math.round(totalPackage * totalMale / totalPeople) : 0;
+  const packageFemale  = totalPackage - packageMale;
+  const additionalMale = totalPeople > 0 ? Math.round(totalAdditional * totalMale / totalPeople) : 0;
+  const additionalFemale = totalAdditional - additionalMale;
+
+  const pct = (n: number, total: number) =>
+    total > 0 ? Math.round((n / total) * 1000) / 10 : 0;
+
+  const pkgTotal = packageMale + packageFemale;
+  const addTotal = additionalMale + additionalFemale;
+
+  return {
+    totalMale,
+    totalFemale,
+    packageMale,
+    packageFemale,
+    additionalMale,
+    additionalFemale,
+    packageMalePct:      pct(packageMale,    pkgTotal),
+    packageFemalePct:    pct(packageFemale,  pkgTotal),
+    additionalMalePct:   pct(additionalMale,   addTotal),
+    additionalFemalePct: pct(additionalFemale, addTotal),
+    ageGroups,
+  };
+}
+
 // ── 실제 파일 기준 연령대 열 위치: idx 1-7 (A열=레이블, B-H=연령대) ──
 function parseAgeRow(row: unknown[]): AgeGroupData {
   return {
@@ -98,7 +182,7 @@ export function parseGadaExcel(file: File): Promise<GadaExcelData> {
 
         // ── 데이터 영역 2: 기예약자 목록 ─────────────────────────────────
         // 실제 열 위치 (0-based):
-        //   L(11)=이름  M(12)=기업  N(13)=생년월일  O(14)=성별
+        //   L(11)=이름  M(12)=기업  N(13)=생년월일(YYYY)  O(14)=성별(F/M)
         //   P(15)=예약시간  Q(16)=예약병원  R(17)=예약현황
         let area2DataStart = -1;
         for (let i = 0; i < rows.length; i++) {
@@ -116,8 +200,8 @@ export function parseGadaExcel(file: File): Promise<GadaExcelData> {
             reservations.push({
               maskedName:      maskName(name),
               company:         String(rows[i][12] ?? ''),
-              birthYear:       maskBirth(rows[i][13]),
-              gender:          String(rows[i][14] ?? ''),
+              birthYear:       maskBirth(rows[i][13]),    // N열
+              gender:          String(rows[i][14] ?? ''), // O열
               reservationTime: excelSerialToDateStr(rows[i][15]),
               hospital:        String(rows[i][16] ?? '').trim(),
               status:          String(rows[i][17] ?? ''),
@@ -183,6 +267,7 @@ export function parseGadaExcel(file: File): Promise<GadaExcelData> {
           companyStats,
           mainHospitals,
           otherHospitals,
+          genderStats: computeGenderStats(reservations),
         });
       } catch (err) {
         reject(err instanceof Error ? err : new Error(String(err)));
