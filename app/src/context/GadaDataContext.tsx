@@ -1,10 +1,11 @@
 import { createContext, useContext, useState } from 'react';
-import type { GadaExcelData, UploadLogEntry, UploadStatus } from '../types/gada';
+import type { GadaExcelData, DisplayAdData, UploadLogEntry, UploadStatus } from '../types/gada';
 
 // ── sessionStorage 헬퍼 (탭/브라우저 닫으면 자동 소멸) ──────────────
 const SS_KEY_DATA     = 'gada_data';
 const SS_KEY_DATAFILE = 'gada_data_file';
 const SS_KEY_HISTORY  = 'gada_history';
+const SS_KEY_DISPLAY  = 'display_ad_data';
 
 function ssGet<T>(key: string): T | null {
   try {
@@ -28,6 +29,10 @@ type GadaDataContextType = {
   gadaData: GadaExcelData | null;
   /** filename: 이 데이터가 어떤 업로드 파일에서 왔는지(시각화-파일 연결용) */
   setGadaData: (data: GadaExcelData | null, filename?: string | null) => void;
+
+  /** 디스플레이 광고 현황 데이터 (방문통계 a/b, 월별 남녀 c/d) */
+  displayAdData: DisplayAdData | null;
+  setDisplayAdData: (data: DisplayAdData | null) => void;
 
   uploadHistory: UploadLogEntry[];
   addUploadLog: (
@@ -56,6 +61,10 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
     () => ssGet<string>(SS_KEY_DATAFILE)
   );
 
+  const [displayAdData, setDisplayAdDataState] = useState<DisplayAdData | null>(
+    () => ssGet<DisplayAdData>(SS_KEY_DISPLAY)
+  );
+
   const [uploadHistory, setUploadHistory] = useState<UploadLogEntry[]>(
     () => ssGet<UploadLogEntry[]>(SS_KEY_HISTORY) ?? []
   );
@@ -65,6 +74,11 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
     ssSet(SS_KEY_DATA, data);
     setDataFilename(filename);
     ssSet(SS_KEY_DATAFILE, filename);
+  };
+
+  const setDisplayAdData = (data: DisplayAdData | null) => {
+    setDisplayAdDataState(data);
+    ssSet(SS_KEY_DISPLAY, data);
   };
 
   const addUploadLog = (
@@ -117,6 +131,8 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         gadaData,
         setGadaData,
+        displayAdData,
+        setDisplayAdData,
         uploadHistory,
         addUploadLog,
         removeUploadLogs,

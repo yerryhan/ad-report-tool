@@ -86,6 +86,42 @@ export type GadaExcelData = {
   genderStats: GenderStats;
 };
 
+// ── 디스플레이 광고 현황 데이터 (가다실 파일과 별개의 엑셀) ──────────────
+/** 방문통계 표(a/b)의 광고 지면별 행: PV/UV 각 1~12월 */
+export type VisitPlacementRow = {
+  /** 광고 지면명 */
+  placement: string;
+  /** 월별 PV (길이 12, 1~12월) */
+  pv: number[];
+  /** 월별 UV (길이 12, 1~12월) */
+  uv: number[];
+};
+
+/** 방문통계 표 (a: 전체 방문통계 / b: 로그인 회원 방문통계) */
+export type VisitStatsTable = {
+  /** 광고 지면 행 (5개) */
+  rows: VisitPlacementRow[];
+  /** 월별 PV 합계 (길이 12) */
+  pvTotal: number[];
+  /** 월별 UV 합계 (길이 12) */
+  uvTotal: number[];
+};
+
+/** 월별 남성/여성 예약자수 한 달치 (c/d 표) */
+export type GenderMonthly = { male: number; female: number };
+
+/** 디스플레이 광고 현황 데이터 엑셀 파싱 결과 */
+export type DisplayAdData = {
+  /** a: 전체 방문통계 (추후 시각화용) */
+  totalVisit: VisitStatsTable;
+  /** b: 로그인 회원 방문통계 (추후 시각화용) */
+  memberVisit: VisitStatsTable;
+  /** c: 월별 남성/여성 예약자수 (검진유형 패키지), 길이 12 */
+  packageMonthly: GenderMonthly[];
+  /** d: 월별 남성/여성 예약자수 (선택 추가항목), 길이 12 */
+  additionalMonthly: GenderMonthly[];
+};
+
 export type UploadStatus = "success" | "fail" | "pending";
 
 export type UploadLogEntry = {

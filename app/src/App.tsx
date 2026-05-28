@@ -6,6 +6,7 @@ import DataUpload from "./pages/DataManagement/DataUpload";
 import DataHistory from "./pages/DataManagement/DataHistory";
 import HospitalBooking from "./pages/Marketing/HospitalBooking";
 import CompanyMarketing from "./pages/Marketing/CompanyMarketing";
+import PvUvOverview from "./pages/Display/PvUvOverview";
 import { ColorThemeProvider } from "./context/ColorThemeContext";
 import { GadaDataProvider } from "./context/GadaDataContext";
 
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/data/history" element={<DataHistory />} />
               <Route path="/marketing/company"  element={<CompanyMarketing />} />
               <Route path="/marketing/hospital" element={<HospitalBooking />} />
+              <Route path="/display/pv-uv"      element={<PvUvOverview />} />
             </Route>
           </Routes>
         </Router>

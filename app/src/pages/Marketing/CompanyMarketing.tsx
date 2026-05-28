@@ -500,21 +500,29 @@ function SectionCharts({
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────────
 export default function CompanyMarketing() {
   const { currentTheme } = useColorTheme();
-  const { gadaData } = useGadaData();
+  const { gadaData, displayAdData } = useGadaData();
 
-  // ── 섹션2: a(packageMale) / b(packageFemale) 수동 입력 ──────────────
+  // ── 섹션2: 검진유형 패키지 월별 남녀 ──────────────────────────────────
+  // 우선순위: 디스플레이 광고 엑셀(표 c)이 12개월 전체를 채우고,
+  // 가다실 파일이 있으면 '해당월' 한 칸만 가다실 값으로 유지(덮어씀).
   const [monthlyData, setMonthlyData] = useState<MonthlyEntry[]>(() =>
     Array(12).fill(null).map(() => ({ male: 0, female: 0 }))
   );
   useEffect(() => {
-    if (!gadaData?.genderStats || gadaData.month < 1 || gadaData.month > 12) return;
-    const idx = gadaData.month - 1;
     setMonthlyData(prev => {
       const next = [...prev];
-      next[idx] = { male: gadaData.genderStats.packageMale, female: gadaData.genderStats.packageFemale };
+      if (displayAdData) {
+        for (let i = 0; i < 12; i++) next[i] = { ...displayAdData.packageMonthly[i] };
+      }
+      if (gadaData?.genderStats && gadaData.month >= 1 && gadaData.month <= 12) {
+        next[gadaData.month - 1] = {
+          male: gadaData.genderStats.packageMale,
+          female: gadaData.genderStats.packageFemale,
+        };
+      }
       return next;
     });
-  }, [gadaData]);
+  }, [gadaData, displayAdData]);
 
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState<{ male: string; female: string }[]>(() =>
@@ -532,19 +540,27 @@ export default function CompanyMarketing() {
     setModalData(prev => { const next = [...prev]; next[i] = { ...next[i], [gender]: val }; return next; });
   };
 
-  // ── 섹션3: c(additionalMale) / d(additionalFemale) 수동 입력 ────────
+  // ── 섹션3: 선택 추가항목 월별 남녀 ────────────────────────────────────
+  // 우선순위: 디스플레이 광고 엑셀(표 d)이 12개월 전체를 채우고,
+  // 가다실 파일이 있으면 '해당월' 한 칸만 가다실 값으로 유지(덮어씀).
   const [monthlyData3, setMonthlyData3] = useState<MonthlyEntry[]>(() =>
     Array(12).fill(null).map(() => ({ male: 0, female: 0 }))
   );
   useEffect(() => {
-    if (!gadaData?.genderStats || gadaData.month < 1 || gadaData.month > 12) return;
-    const idx = gadaData.month - 1;
     setMonthlyData3(prev => {
       const next = [...prev];
-      next[idx] = { male: gadaData.genderStats.additionalMale, female: gadaData.genderStats.additionalFemale };
+      if (displayAdData) {
+        for (let i = 0; i < 12; i++) next[i] = { ...displayAdData.additionalMonthly[i] };
+      }
+      if (gadaData?.genderStats && gadaData.month >= 1 && gadaData.month <= 12) {
+        next[gadaData.month - 1] = {
+          male: gadaData.genderStats.additionalMale,
+          female: gadaData.genderStats.additionalFemale,
+        };
+      }
       return next;
     });
-  }, [gadaData]);
+  }, [gadaData, displayAdData]);
 
   const [showModal3, setShowModal3] = useState(false);
   const [modalData3, setModalData3] = useState<{ male: string; female: string }[]>(() =>

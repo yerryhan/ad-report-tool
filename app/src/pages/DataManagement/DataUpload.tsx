@@ -2,8 +2,9 @@ import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import PageMeta from "../../components/common/PageMeta";
 import { isGadaFile, parseGadaExcel } from "../../utils/gadaExcelParser";
+import { isDisplayAdFile, parseDisplayAdExcel } from "../../utils/displayAdExcelParser";
 import { useGadaData } from "../../context/GadaDataContext";
-import type { GadaExcelData } from "../../types/gada";
+import type { GadaExcelData, DisplayAdData } from "../../types/gada";
 
 type ItemStatus = "대기" | "성공" | "실패";
 
@@ -11,8 +12,10 @@ type PendingItem = {
   id: string;
   file: File;
   isGada: boolean;
+  isDisplay: boolean;
   isParsing: boolean;
   parsed: GadaExcelData | null;
+  parsedDisplay: DisplayAdData | null;
   parseError: string | null;
   status: ItemStatus;
 };
@@ -66,6 +69,59 @@ function GadaParsePreview({ data }: { data: GadaExcelData }) {
   );
 }
 
+// 디스플레이 광고 데이터 파싱 결과 미리보기 카드
+function DisplayAdParsePreview({ data }: { data: DisplayAdData }) {
+  const sum = (arr: { male: number; female: number }[]) =>
+    arr.reduce(
+      (acc, e) => ({ male: acc.male + e.male, female: acc.female + e.female }),
+      { male: 0, female: 0 }
+    );
+  const pkg = sum(data.packageMonthly);
+  const add = sum(data.additionalMonthly);
+  const placements = data.totalVisit.rows.length;
+
+  return (
+    <div className="flex flex-col gap-3 w-full">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M10 3L5 9L2 6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+          디스플레이 광고 현황 데이터 파싱 완료
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "광고 지면", value: `${placements}개` },
+          { label: "패키지 누적(남/여)", value: `${pkg.male}/${pkg.female}` },
+          { label: "추가항목 누적(남/여)", value: `${add.male}/${add.female}` },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2 text-center"
+          >
+            <p className="text-xs text-gray-500 dark:text-gray-400">{item.label}</p>
+            <p className="mt-0.5 text-base font-bold text-gray-800 dark:text-white">
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        * 월별 남성/여성(검진유형 패키지·선택 추가항목) 수치가 기업체별 마케팅 현황 표에 자동 입력됩니다
+      </p>
+    </div>
+  );
+}
+
 function statusColor(status: ItemStatus): string {
   if (status === "성공") return "text-green-500";
   if (status === "실패") return "text-red-500";
@@ -74,20 +130,23 @@ function statusColor(status: ItemStatus): string {
 
 export default function DataUpload() {
   const [items, setItems] = useState<PendingItem[]>([]);
-  const { setGadaData, addUploadLog } = useGadaData();
+  const { setGadaData, setDisplayAdData, addUploadLog } = useGadaData();
 
-  // ── 드롭존: xlsx 허용, 드롭 즉시 가다실 파일은 브라우저 메모리에서 파싱 ──
+  // ── 드롭존: xlsx 허용, 드롭 즉시 인식 가능한 파일은 브라우저 메모리에서 파싱 ──
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
     const newItems: PendingItem[] = acceptedFiles.map((file) => {
       const gada = isGadaFile(file.name);
+      const display = !gada && isDisplayAdFile(file.name);
       return {
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         file,
         isGada: gada,
-        isParsing: gada,
+        isDisplay: display,
+        isParsing: gada || display,
         parsed: null,
+        parsedDisplay: null,
         parseError: null,
         status: "대기" as ItemStatus,
       };
@@ -95,32 +154,45 @@ export default function DataUpload() {
 
     setItems((prev) => [...prev, ...newItems]);
 
-    // 가다실 파일은 비동기 파싱 후 해당 항목만 갱신
+    const onParseError = (id: string) => (err: unknown) => {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === id
+            ? {
+                ...it,
+                parseError:
+                  "파싱 실패: " +
+                  (err instanceof Error ? err.message : String(err)),
+                isParsing: false,
+              }
+            : it
+        )
+      );
+    };
+
+    // 인식된 파일은 비동기 파싱 후 해당 항목만 갱신
     for (const item of newItems) {
-      if (!item.isGada) continue;
-      parseGadaExcel(item.file)
-        .then((parsed) => {
-          setItems((prev) =>
-            prev.map((it) =>
-              it.id === item.id ? { ...it, parsed, isParsing: false } : it
-            )
-          );
-        })
-        .catch((err) => {
-          setItems((prev) =>
-            prev.map((it) =>
-              it.id === item.id
-                ? {
-                    ...it,
-                    parseError:
-                      "파싱 실패: " +
-                      (err instanceof Error ? err.message : String(err)),
-                    isParsing: false,
-                  }
-                : it
-            )
-          );
-        });
+      if (item.isGada) {
+        parseGadaExcel(item.file)
+          .then((parsed) => {
+            setItems((prev) =>
+              prev.map((it) =>
+                it.id === item.id ? { ...it, parsed, isParsing: false } : it
+              )
+            );
+          })
+          .catch(onParseError(item.id));
+      } else if (item.isDisplay) {
+        parseDisplayAdExcel(item.file)
+          .then((parsedDisplay) => {
+            setItems((prev) =>
+              prev.map((it) =>
+                it.id === item.id ? { ...it, parsedDisplay, isParsing: false } : it
+              )
+            );
+          })
+          .catch(onParseError(item.id));
+      }
     }
   }, []);
 
@@ -130,6 +202,7 @@ export default function DataUpload() {
 
     let lastGada: GadaExcelData | null = null;
     let lastGadaName: string | null = null;
+    let lastDisplay: DisplayAdData | null = null;
     const result = new Map<string, ItemStatus>();
 
     for (const it of pending) {
@@ -143,14 +216,24 @@ export default function DataUpload() {
           addUploadLog(it.file.name, "fail", "admin");
           result.set(it.id, "실패");
         }
+      } else if (it.isDisplay) {
+        if (it.parsedDisplay) {
+          lastDisplay = it.parsedDisplay;
+          addUploadLog(it.file.name, "success", "admin");
+          result.set(it.id, "성공");
+        } else {
+          addUploadLog(it.file.name, "fail", "admin");
+          result.set(it.id, "실패");
+        }
       } else {
-        // 가다실 외 파일: 현재 파서 미구현 → 업로드 자체는 성공 처리
+        // 인식 못 한 파일: 현재 파서 미구현 → 업로드 자체는 성공 처리
         addUploadLog(it.file.name, "success", "admin");
         result.set(it.id, "성공");
       }
     }
 
     if (lastGada) setGadaData(lastGada, lastGadaName);
+    if (lastDisplay) setDisplayAdData(lastDisplay);
     setItems((prev) =>
       prev.map((it) => (result.has(it.id) ? { ...it, status: result.get(it.id)! } : it))
     );
@@ -166,8 +249,9 @@ export default function DataUpload() {
     multiple: true,
   });
 
-  // 박스에는 가장 최근 가다실 파일의 파싱 상태/통계를 표시
-  const latestGada = [...items].reverse().find((it) => it.isGada) ?? null;
+  // 박스에는 가장 최근 인식 파일(가다실/디스플레이)의 파싱 상태/통계를 표시
+  const latestParsable =
+    [...items].reverse().find((it) => it.isGada || it.isDisplay) ?? null;
   const hasActionable = items.some((it) => it.status === "대기" && !it.isParsing);
 
   return (
@@ -213,19 +297,21 @@ export default function DataUpload() {
             >
               <input {...getInputProps()} />
               <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-6 py-5">
-                {latestGada?.isParsing ? (
+                {latestParsable?.isParsing ? (
                   <>
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       파일 분석 중…
                     </span>
                   </>
-                ) : latestGada?.parsed ? (
-                  <GadaParsePreview data={latestGada.parsed} />
-                ) : latestGada?.parseError ? (
+                ) : latestParsable?.parsed ? (
+                  <GadaParsePreview data={latestParsable.parsed} />
+                ) : latestParsable?.parsedDisplay ? (
+                  <DisplayAdParsePreview data={latestParsable.parsedDisplay} />
+                ) : latestParsable?.parseError ? (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-sm font-medium text-red-500">
-                      {latestGada.parseError}
+                      {latestParsable.parseError}
                     </span>
                     <span className="text-xs text-gray-400">
                       다시 파일을 드래그하거나 클릭해서 선택하세요
