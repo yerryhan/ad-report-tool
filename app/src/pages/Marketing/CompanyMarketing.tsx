@@ -1,17 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import { Link } from "react-router";
 import PageMeta from "../../components/common/PageMeta";
 import { useGadaData } from "../../context/GadaDataContext";
+import { useColorTheme } from "../../context/ColorThemeContext";
 
 // ── 상수 ────────────────────────────────────────────────────────────────
 const MONTH_LABELS = [
   "1월","2월","3월","4월","5월","6월",
   "7월","8월","9월","10월","11월","12월","누적합계",
 ];
-const MALE_COLOR   = "#3B9189";
-const FEMALE_COLOR = "#7DCAC3";
+const MONTH_LABELS_12 = [
+  "1월","2월","3월","4월","5월","6월",
+  "7월","8월","9월","10월","11월","12월",
+];
+
+type MonthlyEntry = { male: number; female: number };
 
 // ── 도넛 옵션 팩토리 ────────────────────────────────────────────────────
 function makeDonutOpts(
@@ -35,7 +40,7 @@ function makeDonutOpts(
     plotOptions: {
       pie: {
         donut: {
-          size: "68%",
+          size: "52%",
           labels: {
             show: true,
             total: {
@@ -51,6 +56,123 @@ function makeDonutOpts(
         },
       },
     },
+  };
+}
+
+// ── 막대 그래프 옵션 팩토리 ────────────────────────────────────────────
+function makeBarOptions(yMax: number, mainColor: string, subColor: string): ApexOptions {
+  return {
+    chart: {
+      type: "bar",
+      stacked: true,
+      toolbar: { show: false },
+      fontFamily: "Outfit, sans-serif",
+      animations: { enabled: false },
+      background: "transparent",
+      offsetX: 0,
+      offsetY: 0,
+    },
+    colors: [mainColor, subColor],
+    plotOptions: {
+      bar: {
+        columnWidth: "52%",
+        dataLabels: { total: { enabled: false } },
+      },
+    },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: MONTH_LABELS,
+      axisBorder: { show: false },
+      axisTicks:  { show: false },
+      labels: { show: false },
+    },
+    yaxis: {
+      tickAmount: yMax / 20,
+      max: yMax,
+      min: 0,
+      labels: {
+        formatter: (v: number) => String(v),
+        style: { fontSize: "10px", colors: ["#9ca3af"] },
+        minWidth: 38,
+        maxWidth: 38,
+      },
+    },
+    legend: {
+      show: true,
+      position: "top",
+      horizontalAlign: "right",
+      fontSize: "12px",
+      fontFamily: "Outfit, sans-serif",
+      fontWeight: 400,
+      markers: { size: 8 },
+    },
+    grid: {
+      borderColor: "#f3f4f6",
+      yaxis: { lines: { show: true } },
+      xaxis: { lines: { show: false } },
+      padding: { left: 0, right: 0, top: 0, bottom: 0 },
+    },
+    tooltip: {
+      y: { formatter: (v: number) => `${v}명` },
+    },
+  };
+}
+
+// ── 면적 그래프 옵션 팩토리 ────────────────────────────────────────────
+function makeAreaOptions(yMax: number, mainColor: string, subColor: string): ApexOptions {
+  return {
+    chart: {
+      type: "area",
+      toolbar: { show: false },
+      fontFamily: "Outfit, sans-serif",
+      animations: { enabled: false },
+      background: "transparent",
+    },
+    colors: [mainColor, subColor],
+    fill: {
+      type: "gradient",
+      gradient: {
+        shadeIntensity: 1,
+        opacityFrom: 0.45,
+        opacityTo: 0.04,
+        stops: [0, 100],
+      },
+    },
+    stroke: { curve: "smooth", width: 2 },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: MONTH_LABELS_12,
+      axisBorder: { show: false },
+      axisTicks:  { show: false },
+      labels: { style: { fontSize: "10px", colors: Array(12).fill("#9ca3af") } },
+    },
+    yaxis: {
+      min: 0,
+      max: yMax,
+      tickAmount: yMax / 10,
+      labels: {
+        formatter: (v: number) => String(v),
+        style: { fontSize: "10px", colors: ["#9ca3af"] },
+        minWidth: 28,
+        maxWidth: 28,
+      },
+    },
+    legend: {
+      show: true,
+      position: "top",
+      horizontalAlign: "right",
+      fontSize: "12px",
+      fontFamily: "Outfit, sans-serif",
+      fontWeight: 400,
+      markers: { size: 8, strokeWidth: 0, shape: "square" },
+    },
+    grid: {
+      borderColor: "#f3f4f6",
+      yaxis: { lines: { show: true } },
+      xaxis: { lines: { show: false } },
+      padding: { left: 0, right: 8, top: 0, bottom: 0 },
+    },
+    tooltip: { y: { formatter: (v: number) => `${v}명` } },
   };
 }
 
@@ -77,124 +199,430 @@ function EmptyState() {
   );
 }
 
+// ── 이전 데이터 입력 모달 ────────────────────────────────────────────────
+function DataInputModal({
+  title,
+  modalData,
+  currentMonth,
+  onChangeCell,
+  onSave,
+  onClose,
+}: {
+  title: string;
+  modalData: { male: string; female: string }[];
+  currentMonth: number | undefined;
+  onChangeCell: (i: number, gender: "male" | "female", val: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-bold text-gray-800 dark:text-white">{title}</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onSave}
+              className="h-8 px-4 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium transition-colors"
+            >
+              저장
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="p-6 overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <colgroup>
+              <col style={{ width: "52px" }} />
+              {Array(12).fill(null).map((_, i) => <col key={i} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 py-2.5 px-2" />
+                {MONTH_LABELS_12.map((m, i) => (
+                  <th
+                    key={i}
+                    className={`border border-gray-200 dark:border-gray-700 py-2.5 px-2 text-center font-semibold text-gray-600 dark:text-gray-300
+                      ${currentMonth === i + 1
+                        ? "bg-gray-200 dark:bg-gray-600"
+                        : "bg-gray-100 dark:bg-gray-700"
+                      }`}
+                  >
+                    {m}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(["female", "male"] as const).map((gender) => (
+                <tr key={gender}>
+                  <td className="border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 py-2.5 px-2 text-center font-semibold text-gray-600 dark:text-gray-300">
+                    {gender === "female" ? "여성" : "남성"}
+                  </td>
+                  {modalData.map((entry, i) => (
+                    <td key={i} className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-1.5 px-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={entry[gender]}
+                        onChange={(e) => onChangeCell(i, gender, e.target.value.replace(/\D/g, ""))}
+                        className="w-full min-w-[32px] text-center text-xs text-gray-700 dark:text-gray-300 bg-transparent outline-none"
+                        placeholder="0"
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 섹션 공통: 차트 레이아웃 ─────────────────────────────────────────────
+function SectionCharts({
+  gadaMonth,
+  themeName,
+  stats,
+  barOpts,
+  barSeries,
+  leftDonutOpts,
+  rightDonutOpts,
+  donutSeries,
+  areaOpts,
+  areaSeries,
+  prefix,
+  onOpenModal,
+}: {
+  gadaMonth: number;
+  themeName: string;
+  stats: { maleSeries: number[]; femaleSeries: number[] };
+  barOpts: ApexOptions;
+  barSeries: { name: string; data: number[] }[];
+  leftDonutOpts: ApexOptions;
+  rightDonutOpts: ApexOptions;
+  donutSeries: number[];
+  areaOpts: ApexOptions;
+  areaSeries: { name: string; data: number[] }[];
+  prefix: string;
+  onOpenModal: () => void;
+}) {
+  return (
+    <>
+      {/* 컨트롤 바 */}
+      <div className="shrink-0 flex items-center justify-end px-6 py-2 border-b border-gray-100 dark:border-gray-700">
+        <button
+          onClick={onOpenModal}
+          className="h-7 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          이전 데이터 입력
+        </button>
+      </div>
+
+      <div className="flex-1 flex min-h-0">
+
+        {/* 왼쪽 절반: 막대그래프 + 예약자 수 표 */}
+        <div className="w-1/2 flex flex-col px-6 pt-5 pb-4 border-r border-gray-100 dark:border-gray-700 min-h-0">
+          <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
+            월별 남성/여성 통계
+          </h2>
+          <div className="flex-1 min-h-0">
+            <Chart
+              key={`${prefix}-bar-${gadaMonth}-${themeName}`}
+              options={barOpts}
+              series={barSeries}
+              type="bar"
+              height="100%"
+            />
+          </div>
+          <div className="shrink-0 mt-0">
+            <table className="w-full table-fixed border-collapse text-[9px] leading-none">
+              <colgroup>
+                <col style={{ width: "38px", minWidth: "38px", maxWidth: "38px" }} />
+                {Array(13).fill(null).map((_, i) => <col key={i} />)}
+              </colgroup>
+              <thead>
+                <tr>
+                  <th className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1" />
+                  {MONTH_LABELS.map((m) => (
+                    <th key={m} className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1 text-center font-semibold text-gray-600 dark:text-gray-300">
+                      {m}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1 text-center font-semibold text-gray-600 dark:text-gray-300">여성</td>
+                  {stats.femaleSeries.slice(0, 12).map((v, i) => (
+                    <td key={i} className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center text-gray-700 dark:text-gray-300">{v}</td>
+                  ))}
+                  <td className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center font-semibold text-gray-700 dark:text-gray-300">{stats.femaleSeries[12]}</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1 text-center font-semibold text-gray-600 dark:text-gray-300">남성</td>
+                  {stats.maleSeries.slice(0, 12).map((v, i) => (
+                    <td key={i} className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center text-gray-700 dark:text-gray-300">{v}</td>
+                  ))}
+                  <td className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center font-semibold text-gray-700 dark:text-gray-300">{stats.maleSeries[12]}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 오른쪽 절반: 도넛 + 면적 차트 */}
+        <div className="w-1/2 flex flex-col min-h-0">
+
+          {/* 상단: 도넛 두 개 */}
+          <div className="flex-1 flex flex-col px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="shrink-0 mb-4 text-sm font-bold text-gray-800 dark:text-white">
+              해당월 성별 비율
+            </h2>
+            <div className="flex flex-1 items-center justify-center gap-20">
+              <div className="flex flex-col items-center">
+                <div className="rounded-full bg-gray-50 p-1">
+                  <Chart
+                    key={`${prefix}-donut-m-${gadaMonth}-${themeName}`}
+                    options={leftDonutOpts}
+                    series={donutSeries}
+                    type="donut"
+                    width={190}
+                    height={190}
+                  />
+                </div>
+                <span className="mt-3 text-[11px] font-normal text-gray-500 dark:text-gray-400">
+                  해당월 남성 비율
+                </span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="rounded-full bg-gray-50 p-1">
+                  <Chart
+                    key={`${prefix}-donut-f-${gadaMonth}-${themeName}`}
+                    options={rightDonutOpts}
+                    series={donutSeries}
+                    type="donut"
+                    width={190}
+                    height={190}
+                  />
+                </div>
+                <span className="mt-3 text-[11px] font-normal text-gray-500 dark:text-gray-400">
+                  해당월 여성 비율
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 하단: 면적 차트 */}
+          <div className="flex-1 flex flex-col px-6 pt-5 pb-4 min-h-0">
+            <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
+              월별 남성/여성 통계 추이
+            </h2>
+            <div className="flex-1 min-h-0">
+              <Chart
+                key={`${prefix}-area-${gadaMonth}-${themeName}`}
+                options={areaOpts}
+                series={areaSeries}
+                type="area"
+                height="100%"
+              />
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────────
 export default function CompanyMarketing() {
+  const { currentTheme } = useColorTheme();
   const { gadaData } = useGadaData();
 
-  // ── 차트 수치 계산 ──────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    if (!gadaData?.genderStats) return null;
-
-    const { genderStats, month } = gadaData;
-    const { totalMale, totalFemale, packageMalePct } = genderStats;
-
-    const maleData:   number[] = Array(12).fill(0);
-    const femaleData: number[] = Array(12).fill(0);
-    if (month >= 1 && month <= 12) {
-      maleData[month - 1]   = totalMale;
-      femaleData[month - 1] = totalFemale;
-    }
-
-    const cumMale   = maleData.reduce((s, v) => s + v, 0);
-    const cumFemale = femaleData.reduce((s, v) => s + v, 0);
-    const maleSeries:   number[] = [...maleData,   cumMale];
-    const femaleSeries: number[] = [...femaleData, cumFemale];
-
-    const maxTotal = Math.max(...maleSeries.map((m, i) => m + femaleSeries[i]), 40);
-    const yMax = Math.ceil(maxTotal / 20) * 20;
-
-    const aPct = packageMalePct;
-    const bPct = parseFloat((100 - aPct).toFixed(1));
-
-    return { maleSeries, femaleSeries, yMax, aPct, bPct };
+  // ── 섹션2: a(totalMale) / b(totalFemale) 수동 입력 ──────────────────
+  const [monthlyData, setMonthlyData] = useState<MonthlyEntry[]>(() =>
+    Array(12).fill(null).map(() => ({ male: 0, female: 0 }))
+  );
+  useEffect(() => {
+    if (!gadaData?.genderStats || gadaData.month < 1 || gadaData.month > 12) return;
+    const idx = gadaData.month - 1;
+    setMonthlyData(prev => {
+      const next = [...prev];
+      next[idx] = { male: gadaData.genderStats.totalMale, female: gadaData.genderStats.totalFemale };
+      return next;
+    });
   }, [gadaData]);
 
-  // ── 막대 그래프 옵션 (12개월 + 누적합계 슬롯, X축 레이블 숨김) ──────
-  const barOptions = useMemo((): ApexOptions => {
-    if (!stats) return {};
-    return {
-      chart: {
-        type: "bar",
-        stacked: true,
-        toolbar: { show: false },
-        fontFamily: "Outfit, sans-serif",
-        animations: { enabled: false },
-        background: "transparent",
-        offsetX: 0,
-        offsetY: 0,
-      },
-      colors: [MALE_COLOR, FEMALE_COLOR],
-      plotOptions: {
-        bar: {
-          columnWidth: "52%",
-          dataLabels: { total: { enabled: false } },
-        },
-      },
-      dataLabels: { enabled: false },
-      xaxis: {
-        categories: MONTH_LABELS, // 1월~12월 + 누적합계 (13개)
-        axisBorder: { show: false },
-        axisTicks:  { show: false },
-        labels: { show: false }, // 아래 표의 헤더 행이 X축 역할
-      },
-      yaxis: {
-        tickAmount: stats.yMax / 20, // 20 단위로 기준선 표시
-        max: stats.yMax,             // 최대값을 20 단위로 반올림한 값
-        min: 0,
-        labels: {
-          formatter: (v: number) => String(v),
-          style: { fontSize: "10px", colors: ["#9ca3af"] },
-          minWidth: 38,
-          maxWidth: 38,
-        },
-      },
-      legend: {
-        show: true,
-        position: "top",
-        horizontalAlign: "right",
-        fontSize: "12px",
-        fontFamily: "Outfit, sans-serif",
-        fontWeight: 400,
-        markers: { size: 8 },
-      },
-      grid: {
-        borderColor: "#f3f4f6",
-        yaxis: { lines: { show: true } },
-        xaxis: { lines: { show: false } },
-        padding: { left: 0, right: 0, top: 0, bottom: 0 },
-      },
-      tooltip: {
-        y: { formatter: (v: number) => `${v}명` },
-      },
-    };
-  }, [stats]);
+  const [showModal, setShowModal] = useState(false);
+  const [modalData, setModalData] = useState<{ male: string; female: string }[]>(() =>
+    Array(12).fill(null).map(() => ({ male: "", female: "" }))
+  );
+  const openModal = () => {
+    setModalData(monthlyData.map(e => ({ male: e.male > 0 ? String(e.male) : "", female: e.female > 0 ? String(e.female) : "" })));
+    setShowModal(true);
+  };
+  const saveModal = () => {
+    setMonthlyData(modalData.map(e => ({ male: parseInt(e.male, 10) || 0, female: parseInt(e.female, 10) || 0 })));
+    setShowModal(false);
+  };
+  const handleModalCell = (i: number, gender: "male" | "female", val: string) => {
+    setModalData(prev => { const next = [...prev]; next[i] = { ...next[i], [gender]: val }; return next; });
+  };
 
-  // 차트 시리즈: 12개월 + 누적합계 자리는 0 (투명 슬롯, X축 정렬용)
+  // ── 섹션3: c(additionalMale) / d(additionalFemale) 수동 입력 ────────
+  const [monthlyData3, setMonthlyData3] = useState<MonthlyEntry[]>(() =>
+    Array(12).fill(null).map(() => ({ male: 0, female: 0 }))
+  );
+  useEffect(() => {
+    if (!gadaData?.genderStats || gadaData.month < 1 || gadaData.month > 12) return;
+    const idx = gadaData.month - 1;
+    setMonthlyData3(prev => {
+      const next = [...prev];
+      next[idx] = { male: gadaData.genderStats.additionalMale, female: gadaData.genderStats.additionalFemale };
+      return next;
+    });
+  }, [gadaData]);
+
+  const [showModal3, setShowModal3] = useState(false);
+  const [modalData3, setModalData3] = useState<{ male: string; female: string }[]>(() =>
+    Array(12).fill(null).map(() => ({ male: "", female: "" }))
+  );
+  const openModal3 = () => {
+    setModalData3(monthlyData3.map(e => ({ male: e.male > 0 ? String(e.male) : "", female: e.female > 0 ? String(e.female) : "" })));
+    setShowModal3(true);
+  };
+  const saveModal3 = () => {
+    setMonthlyData3(modalData3.map(e => ({ male: parseInt(e.male, 10) || 0, female: parseInt(e.female, 10) || 0 })));
+    setShowModal3(false);
+  };
+  const handleModalCell3 = (i: number, gender: "male" | "female", val: string) => {
+    setModalData3(prev => { const next = [...prev]; next[i] = { ...next[i], [gender]: val }; return next; });
+  };
+
+  // ── 섹션2 수치 계산 (a/b + packageMalePct) ──────────────────────────
+  const stats = useMemo(() => {
+    if (!gadaData?.genderStats) return null;
+    const { packageMalePct } = gadaData.genderStats;
+    const maleData   = monthlyData.map(e => e.male);
+    const femaleData = monthlyData.map(e => e.female);
+    const cumMale    = maleData.reduce((s, v) => s + v, 0);
+    const cumFemale  = femaleData.reduce((s, v) => s + v, 0);
+    const maleSeries:   number[] = [...maleData,   cumMale];
+    const femaleSeries: number[] = [...femaleData, cumFemale];
+    const maxTotal = Math.max(...maleSeries.map((m, i) => m + femaleSeries[i]), 40);
+    const yMax = Math.ceil(maxTotal / 20) * 20;
+    const aPct = packageMalePct;
+    const bPct = parseFloat((100 - aPct).toFixed(1));
+    return { maleSeries, femaleSeries, yMax, aPct, bPct };
+  }, [gadaData, monthlyData]);
+
+  // ── 섹션3 수치 계산 (c/d + additionalMalePct/additionalFemalePct) ───
+  const stats3 = useMemo(() => {
+    if (!gadaData?.genderStats) return null;
+    const { additionalMalePct, additionalFemalePct } = gadaData.genderStats;
+    const maleData   = monthlyData3.map(e => e.male);
+    const femaleData = monthlyData3.map(e => e.female);
+    const cumMale    = maleData.reduce((s, v) => s + v, 0);
+    const cumFemale  = femaleData.reduce((s, v) => s + v, 0);
+    const maleSeries:   number[] = [...maleData,   cumMale];
+    const femaleSeries: number[] = [...femaleData, cumFemale];
+    const maxTotal = Math.max(...maleSeries.map((m, i) => m + femaleSeries[i]), 40);
+    const yMax = Math.ceil(maxTotal / 20) * 20;
+    const cPct = additionalMalePct;
+    const dPct = additionalFemalePct;
+    return { maleSeries, femaleSeries, yMax, cPct, dPct };
+  }, [gadaData, monthlyData3]);
+
+  // ── 섹션2 차트 옵션 ──────────────────────────────────────────────────
+  const barOptions = useMemo(
+    () => stats ? makeBarOptions(stats.yMax, currentTheme.main, currentTheme.sub) : {},
+    [stats, currentTheme.main, currentTheme.sub],
+  );
   const barSeries = useMemo(
-    () => stats
-      ? [
-          { name: "남성", data: [...stats.maleSeries.slice(0, 12), 0] },
-          { name: "여성", data: [...stats.femaleSeries.slice(0, 12), 0] },
-        ]
-      : [],
+    () => stats ? [
+      { name: "남성", data: [...stats.maleSeries.slice(0, 12), 0] },
+      { name: "여성", data: [...stats.femaleSeries.slice(0, 12), 0] },
+    ] : [],
     [stats],
   );
-
-  // ── 도넛 옵션 ───────────────────────────────────────────────────────
   const leftDonutOpts = useMemo(
-    () => makeDonutOpts([MALE_COLOR, "#FFFFFF"], MALE_COLOR, `${stats?.aPct ?? 0}%`, MALE_COLOR),
+    () => makeDonutOpts([currentTheme.main, "#FFFFFF"], currentTheme.main, `${stats?.aPct ?? 0}%`, currentTheme.main),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stats?.aPct],
+    [stats?.aPct, currentTheme.main],
   );
   const rightDonutOpts = useMemo(
-    () => makeDonutOpts(["#FFFFFF", FEMALE_COLOR], FEMALE_COLOR, `${stats?.bPct ?? 0}%`, FEMALE_COLOR),
+    () => makeDonutOpts(["#FFFFFF", currentTheme.sub], currentTheme.sub, `${stats?.bPct ?? 0}%`, currentTheme.sub),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stats?.bPct],
+    [stats?.bPct, currentTheme.sub],
   );
   const donutSeries = useMemo(
     () => stats && stats.aPct + stats.bPct > 0 ? [stats.aPct, stats.bPct] : [50, 50],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [stats?.aPct, stats?.bPct],
+  );
+  const areaOptions = useMemo(() => {
+    if (!stats) return {};
+    const allVals = [...stats.maleSeries.slice(0, 12), ...stats.femaleSeries.slice(0, 12)];
+    const yMax = Math.ceil(Math.max(...allVals, 10) / 10) * 10;
+    return makeAreaOptions(yMax, currentTheme.main, currentTheme.sub);
+  }, [stats, currentTheme.main, currentTheme.sub]);
+  const areaSeries = useMemo(
+    () => stats ? [
+      { name: "남성", data: stats.maleSeries.slice(0, 12) },
+      { name: "여성", data: stats.femaleSeries.slice(0, 12) },
+    ] : [],
+    [stats],
+  );
+
+  // ── 섹션3 차트 옵션 ──────────────────────────────────────────────────
+  const barOptions3 = useMemo(
+    () => stats3 ? makeBarOptions(stats3.yMax, currentTheme.main, currentTheme.sub) : {},
+    [stats3, currentTheme.main, currentTheme.sub],
+  );
+  const barSeries3 = useMemo(
+    () => stats3 ? [
+      { name: "남성", data: [...stats3.maleSeries.slice(0, 12), 0] },
+      { name: "여성", data: [...stats3.femaleSeries.slice(0, 12), 0] },
+    ] : [],
+    [stats3],
+  );
+  const leftDonutOpts3 = useMemo(
+    () => makeDonutOpts([currentTheme.main, "#FFFFFF"], currentTheme.main, `${stats3?.cPct ?? 0}%`, currentTheme.main),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stats3?.cPct, currentTheme.main],
+  );
+  const rightDonutOpts3 = useMemo(
+    () => makeDonutOpts(["#FFFFFF", currentTheme.sub], currentTheme.sub, `${stats3?.dPct ?? 0}%`, currentTheme.sub),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stats3?.dPct, currentTheme.sub],
+  );
+  const donutSeries3 = useMemo(
+    () => stats3 && stats3.cPct + stats3.dPct > 0 ? [stats3.cPct, stats3.dPct] : [50, 50],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stats3?.cPct, stats3?.dPct],
+  );
+  const areaOptions3 = useMemo(() => {
+    if (!stats3) return {};
+    const allVals = [...stats3.maleSeries.slice(0, 12), ...stats3.femaleSeries.slice(0, 12)];
+    const yMax = Math.ceil(Math.max(...allVals, 10) / 10) * 10;
+    return makeAreaOptions(yMax, currentTheme.main, currentTheme.sub);
+  }, [stats3, currentTheme.main, currentTheme.sub]);
+  const areaSeries3 = useMemo(
+    () => stats3 ? [
+      { name: "남성", data: stats3.maleSeries.slice(0, 12) },
+      { name: "여성", data: stats3.femaleSeries.slice(0, 12) },
+    ] : [],
+    [stats3],
   );
 
   // ── 렌더 ────────────────────────────────────────────────────────────
@@ -215,10 +643,10 @@ export default function CompanyMarketing() {
           </h1>
         </div>
 
-        {/* ── 스크롤 영역: 섹션 1 + 섹션 2 세로 배치 ─────────────────── */}
+        {/* ── 스크롤 영역 ──────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ══ 섹션 1: 통합 통계 (준비 중) — 전체 높이 ══════════════════ */}
+          {/* ══ 섹션 1: 통합 통계 (준비 중) ═══════════════════════════════ */}
           <div className="min-h-full flex items-center justify-center bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
             {!gadaData ? (
               <EmptyState />
@@ -235,172 +663,76 @@ export default function CompanyMarketing() {
             )}
           </div>
 
-          {/* ══ 섹션 2: 성별 통계 차트 — 전체 높이 ════════════════════════ */}
+          {/* ══ 섹션 2: a/b 성별 통계 (패키지) ════════════════════════════ */}
           <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
             {!gadaData || !stats ? (
               <EmptyState />
             ) : (
-              <div className="flex-1 flex min-h-0">
-
-                {/* 왼쪽 절반: 월별 막대그래프 + 예약자 수 표 */}
-                <div className="w-1/2 flex flex-col px-6 pt-5 pb-4 border-r border-gray-100 dark:border-gray-700 min-h-0">
-                  <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
-                    월별 남성/여성 통계
-                  </h2>
-
-                  {/* 막대그래프: 남은 공간 모두 차지 */}
-                  <div className="flex-1 min-h-0">
-                    <Chart
-                      key={`bar-${gadaData.month}`}
-                      options={barOptions}
-                      series={barSeries}
-                      type="bar"
-                      height="100%"
-                    />
-                  </div>
-
-                  {/* 예약자 수 표 — 헤더가 막대그래프 X축 역할 */}
-                  <div className="shrink-0 mt-0">
-                    <table className="w-full table-fixed border-collapse text-[9px] leading-none">
-                      <colgroup>
-                        {/* 레이블 열: 차트 Y축 너비(38px)와 일치 */}
-                        <col style={{ width: "38px", minWidth: "38px", maxWidth: "38px" }} />
-                        {/* 13개 데이터 열(1월~12월+누적합계): 나머지 너비 균등 분배 */}
-                        {Array(13).fill(null).map((_, i) => (
-                          <col key={i} />
-                        ))}
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          {/* 빈 레이블 헤더 (Y축 너비 확보) */}
-                          <th className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1" />
-                          {/* 1월~12월 + 누적합계 */}
-                          {MONTH_LABELS.map((m) => (
-                            <th
-                              key={m}
-                              className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1 text-center font-semibold text-gray-600 dark:text-gray-300"
-                            >
-                              {m}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* 여성 행 */}
-                        <tr>
-                          <td className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1 text-center font-semibold text-gray-600 dark:text-gray-300">
-                            여성
-                          </td>
-                          {stats.femaleSeries.slice(0, 12).map((v, i) => (
-                            <td
-                              key={i}
-                              className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center text-gray-700 dark:text-gray-300"
-                            >
-                              {v}
-                            </td>
-                          ))}
-                          {/* 누적합계 */}
-                          <td className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center font-semibold text-gray-700 dark:text-gray-300">
-                            {stats.femaleSeries[12]}
-                          </td>
-                        </tr>
-                        {/* 남성 행 */}
-                        <tr>
-                          <td className="border border-gray-200 bg-gray-100 dark:bg-gray-700 dark:border-gray-600 py-1 text-center font-semibold text-gray-600 dark:text-gray-300">
-                            남성
-                          </td>
-                          {stats.maleSeries.slice(0, 12).map((v, i) => (
-                            <td
-                              key={i}
-                              className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center text-gray-700 dark:text-gray-300"
-                            >
-                              {v}
-                            </td>
-                          ))}
-                          {/* 누적합계 */}
-                          <td className="border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 py-1 text-center font-semibold text-gray-700 dark:text-gray-300">
-                            {stats.maleSeries[12]}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* 오른쪽 절반: 도넛 + 꺾은선 (상하 분할) */}
-                <div className="w-1/2 flex flex-col min-h-0">
-
-                  {/* 상단: 도넛 두 개 */}
-                  <div className="flex-1 flex flex-col px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 className="shrink-0 mb-4 text-sm font-bold text-gray-800 dark:text-white">
-                      해당월 성별 비율
-                    </h2>
-                    <div className="flex flex-1 items-center justify-center gap-20">
-
-                      {/* 왼쪽 도넛 — 남성 */}
-                      <div className="flex flex-col items-center">
-                        <div className="rounded-full bg-gray-50 p-1">
-                          <Chart
-                            key={`donut-m-${gadaData.month}`}
-                            options={leftDonutOpts}
-                            series={donutSeries}
-                            type="donut"
-                            width={190}
-                            height={190}
-                          />
-                        </div>
-                        <span className="mt-3 text-[10px] font-normal text-gray-500 dark:text-gray-400">
-                          해당월 남성 비율
-                        </span>
-                      </div>
-
-                      {/* 오른쪽 도넛 — 여성 */}
-                      <div className="flex flex-col items-center">
-                        <div className="rounded-full bg-gray-50 p-1">
-                          <Chart
-                            key={`donut-f-${gadaData.month}`}
-                            options={rightDonutOpts}
-                            series={donutSeries}
-                            type="donut"
-                            width={190}
-                            height={190}
-                          />
-                        </div>
-                        <span className="mt-3 text-[10px] font-normal text-gray-500 dark:text-gray-400">
-                          해당월 여성 비율
-                        </span>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* 하단: 꺾은선 그래프 (다음 작업) */}
-                  <div className="flex-1 flex items-center justify-center px-6">
-                    <p className="text-xs text-gray-300 dark:text-gray-600 select-none">
-                      월별 남성/여성 통계 추이 (준비 중)
-                    </p>
-                  </div>
-
-                </div>
-              </div>
+              <SectionCharts
+                gadaMonth={gadaData.month}
+                themeName={currentTheme.name}
+                stats={stats}
+                barOpts={barOptions}
+                barSeries={barSeries}
+                leftDonutOpts={leftDonutOpts}
+                rightDonutOpts={rightDonutOpts}
+                donutSeries={donutSeries}
+                areaOpts={areaOptions}
+                areaSeries={areaSeries}
+                prefix="s2"
+                onOpenModal={openModal}
+              />
             )}
           </div>
 
-          {/* ══ 섹션 3: 빈 페이지 — 전체 높이 ═══════════════════════════════ */}
-          <div className="min-h-full flex items-center justify-center bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-            <div className="text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700">
-                <svg className="text-gray-300 dark:text-gray-500" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-                </svg>
-              </div>
-              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">세 번째 페이지</p>
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">준비 중입니다</p>
-            </div>
+          {/* ══ 섹션 3: c/d 성별 통계 (추가항목) ══════════════════════════ */}
+          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            {!gadaData || !stats3 ? (
+              <EmptyState />
+            ) : (
+              <SectionCharts
+                gadaMonth={gadaData.month}
+                themeName={currentTheme.name}
+                stats={stats3}
+                barOpts={barOptions3}
+                barSeries={barSeries3}
+                leftDonutOpts={leftDonutOpts3}
+                rightDonutOpts={rightDonutOpts3}
+                donutSeries={donutSeries3}
+                areaOpts={areaOptions3}
+                areaSeries={areaSeries3}
+                prefix="s3"
+                onOpenModal={openModal3}
+              />
+            )}
           </div>
 
         </div>
       </div>
+
+      {/* ── 섹션2 이전 데이터 입력 모달 ──────────────────────────────── */}
+      {showModal && (
+        <DataInputModal
+          title="이전 데이터 입력"
+          modalData={modalData}
+          currentMonth={gadaData?.month}
+          onChangeCell={handleModalCell}
+          onSave={saveModal}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* ── 섹션3 이전 데이터 입력 모달 ──────────────────────────────── */}
+      {showModal3 && (
+        <DataInputModal
+          title="이전 데이터 입력"
+          modalData={modalData3}
+          currentMonth={gadaData?.month}
+          onChangeCell={handleModalCell3}
+          onSave={saveModal3}
+          onClose={() => setShowModal3(false)}
+        />
+      )}
     </>
   );
 }

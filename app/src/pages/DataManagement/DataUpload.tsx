@@ -219,7 +219,7 @@ export default function DataUpload() {
       setPendingFile(null);
       setGadaParsed(null);
       setParseError(null);
-      navigate("/marketing/company");
+      navigate("/");
       return;
     }
     // 파싱 실패 또는 미지원 파일

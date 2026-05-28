@@ -22,7 +22,6 @@ const navItems: NavItem[] = [
     icon: <GroupIcon />,
     name: "기업체·병원별 마케팅 현황",
     subItems: [
-      { name: "통합 통계", path: "/marketing/stats" },
       { name: "기업체별 마케팅 현황", path: "/marketing/company" },
       { name: "병원별 예약 현황", path: "/marketing/hospital" },
     ],
