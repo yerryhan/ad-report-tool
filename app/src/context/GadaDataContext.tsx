@@ -2,8 +2,9 @@ import { createContext, useContext, useState } from 'react';
 import type { GadaExcelData, UploadLogEntry, UploadStatus } from '../types/gada';
 
 // ── sessionStorage 헬퍼 (탭/브라우저 닫으면 자동 소멸) ──────────────
-const SS_KEY_DATA    = 'gada_data';
-const SS_KEY_HISTORY = 'gada_history';
+const SS_KEY_DATA     = 'gada_data';
+const SS_KEY_DATAFILE = 'gada_data_file';
+const SS_KEY_HISTORY  = 'gada_history';
 
 function ssGet<T>(key: string): T | null {
   try {
@@ -25,7 +26,8 @@ function ssSet(key: string, value: unknown): void {
 // ── Context 타입 ────────────────────────────────────────────────────
 type GadaDataContextType = {
   gadaData: GadaExcelData | null;
-  setGadaData: (data: GadaExcelData | null) => void;
+  /** filename: 이 데이터가 어떤 업로드 파일에서 왔는지(시각화-파일 연결용) */
+  setGadaData: (data: GadaExcelData | null, filename?: string | null) => void;
 
   uploadHistory: UploadLogEntry[];
   addUploadLog: (
@@ -33,6 +35,8 @@ type GadaDataContextType = {
     status: UploadStatus,
     uploaderId: string
   ) => void;
+  /** 선택한 로그를 메모리에서 삭제. 현재 시각화에 연결된 파일이면 시각화도 초기화 */
+  removeUploadLogs: (ids: string[]) => void;
   clearHistory: () => void;
 };
 
@@ -47,13 +51,20 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
     () => ssGet<GadaExcelData>(SS_KEY_DATA)
   );
 
+  // 현재 시각화가 어떤 업로드 파일에서 왔는지 (선택 삭제 시 연결 판단용)
+  const [dataFilename, setDataFilename] = useState<string | null>(
+    () => ssGet<string>(SS_KEY_DATAFILE)
+  );
+
   const [uploadHistory, setUploadHistory] = useState<UploadLogEntry[]>(
     () => ssGet<UploadLogEntry[]>(SS_KEY_HISTORY) ?? []
   );
 
-  const setGadaData = (data: GadaExcelData | null) => {
+  const setGadaData = (data: GadaExcelData | null, filename: string | null = null) => {
     setGadaDataState(data);
     ssSet(SS_KEY_DATA, data);
+    setDataFilename(filename);
+    ssSet(SS_KEY_DATAFILE, filename);
   };
 
   const addUploadLog = (
@@ -82,6 +93,20 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  const removeUploadLogs = (ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    const removed = uploadHistory.filter((e) => idSet.has(e.id));
+    const next = uploadHistory.filter((e) => !idSet.has(e.id));
+    setUploadHistory(next);
+    ssSet(SS_KEY_HISTORY, next);
+
+    // 삭제 파일이 현재 시각화에 연결된 파일이면 시각화 데이터 초기화
+    if (dataFilename && removed.some((e) => e.filename === dataFilename)) {
+      setGadaData(null);
+    }
+  };
+
   const clearHistory = () => {
     setUploadHistory([]);
     sessionStorage.removeItem(SS_KEY_HISTORY);
@@ -89,7 +114,14 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <GadaDataContext.Provider
-      value={{ gadaData, setGadaData, uploadHistory, addUploadLog, clearHistory }}
+      value={{
+        gadaData,
+        setGadaData,
+        uploadHistory,
+        addUploadLog,
+        removeUploadLogs,
+        clearHistory,
+      }}
     >
       {children}
     </GadaDataContext.Provider>

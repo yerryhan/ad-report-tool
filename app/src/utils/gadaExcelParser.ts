@@ -59,7 +59,8 @@ function toNum(v: unknown): number {
 
 // ── 예약자 목록 → 성별·연령대 통계 계산 ─────────────────────────────────
 // - O열(birthYear=YYYY)로 나이 계산, P열(gender=F/M)로 성별 구분
-// - 패키지:추가항목 = 1:1.75 (1.5~2 중간값)으로 임의 분할
+// - 남/여 각각을 검진유형 패키지:선택 추가항목 = 1:(1.5~2) 임의 비율로 분할
+//   (같은 비율 r을 적용 → a:c = b:d = 1:r)
 function computeGenderStats(reservations: ReservationRow[]): GenderStats {
   const currentYear = new Date().getFullYear();
 
@@ -106,23 +107,20 @@ function computeGenderStats(reservations: ReservationRow[]): GenderStats {
     }
   }
 
-  const totalPeople = totalMale + totalFemale;
-  const ratio = 1.75; // 패키지:추가항목 = 1:1.75
+  // 검진유형 패키지 : 선택 추가항목 = 1 : (1.5~2) 임의 비율로 분할.
+  // 같은 비율 r을 남/여에 동일하게 적용 → a:c = b:d = 1:r.
+  const r = 1.5 + Math.random() * 0.5;
 
-  const totalPackage    = totalPeople > 0 ? Math.round(totalPeople / (1 + ratio)) : 0;
-  const totalAdditional = totalPeople - totalPackage;
-
-  // 패키지/추가항목 각각 남녀 비율은 전체 비율 그대로 유지
-  const packageMale    = totalPeople > 0 ? Math.round(totalPackage * totalMale / totalPeople) : 0;
-  const packageFemale  = totalPackage - packageMale;
-  const additionalMale = totalPeople > 0 ? Math.round(totalAdditional * totalMale / totalPeople) : 0;
-  const additionalFemale = totalAdditional - additionalMale;
+  const packageMale      = Math.round(totalMale   / (1 + r)); // a
+  const additionalMale   = totalMale - packageMale;           // c
+  const packageFemale    = Math.round(totalFemale / (1 + r)); // b
+  const additionalFemale = totalFemale - packageFemale;       // d
 
   const pct = (n: number, total: number) =>
     total > 0 ? Math.round((n / total) * 1000) / 10 : 0;
 
-  const pkgTotal = packageMale + packageFemale;
-  const addTotal = additionalMale + additionalFemale;
+  const pkgTotal = packageMale + packageFemale;       // a + b
+  const addTotal = additionalMale + additionalFemale; // c + d
 
   return {
     totalMale,

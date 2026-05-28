@@ -31,7 +31,7 @@ const STATUS_DOT: Record<UploadStatus, string> = {
 };
 
 export default function DataHistory() {
-  const { uploadHistory, clearHistory } = useGadaData();
+  const { uploadHistory, removeUploadLogs, clearHistory } = useGadaData();
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -55,6 +55,12 @@ export default function DataHistory() {
     });
   };
 
+  const handleDeleteSelected = () => {
+    if (checkedIds.size === 0) return;
+    removeUploadLogs([...checkedIds]);
+    setCheckedIds(new Set());
+  };
+
   return (
     <>
       <PageMeta title="히스토리" description="데이터 관리 - 업로드 히스토리" />
@@ -65,12 +71,21 @@ export default function DataHistory() {
             히스토리
           </h1>
           {uploadHistory.length > 0 && (
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="h-7 px-3 rounded-lg border border-red-200 dark:border-red-800 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              전체 삭제
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDeleteSelected}
+                disabled={checkedIds.size === 0}
+                className="h-7 px-3 rounded-lg border border-red-200 dark:border-red-800 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                선택 삭제
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="h-7 px-3 rounded-lg border border-red-200 dark:border-red-800 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                전체 삭제
+              </button>
+            </div>
           )}
         </div>
 

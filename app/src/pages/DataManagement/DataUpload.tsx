@@ -1,94 +1,21 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { useNavigate } from "react-router";
 import PageMeta from "../../components/common/PageMeta";
 import { isGadaFile, parseGadaExcel } from "../../utils/gadaExcelParser";
 import { useGadaData } from "../../context/GadaDataContext";
 import type { GadaExcelData } from "../../types/gada";
 
-const HEADERS = ["영역", "PV", "UV", "클릭수"];
-const ROW_LABELS = [
-  "메인 페이지",
-  "모음페이지",
-  "팝업(메인페이지)",
-  "검진 예약 페이지",
-  "예약정보 및 변경 페이지",
-  "병원 둘러보기 페이지",
-];
-const DATA_COLS = 3;
-const initialCellData = () =>
-  Array.from({ length: ROW_LABELS.length }, () => Array(DATA_COLS).fill(""));
-type CellData = string[][];
+type ItemStatus = "대기" | "성공" | "실패";
 
-function DataTable({
-  title,
-  isEditing,
-  cellData,
-  onCellChange,
-}: {
-  title: string;
-  isEditing: boolean;
-  cellData: CellData;
-  onCellChange: (row: number, col: number, value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-        {title}
-      </span>
-      <div className="overflow-hidden rounded-xl bg-white dark:bg-white/[0.03]">
-        <div className="w-full overflow-x-auto">
-          <table className="w-full table-fixed border-collapse text-sm">
-            <colgroup>
-              <col style={{ width: "24%" }} />
-              <col />
-              <col />
-              <col />
-            </colgroup>
-            <tbody>
-              {Array.from({ length: ROW_LABELS.length + 1 }).map((_, rowIdx) => (
-                <tr key={rowIdx}>
-                  {HEADERS.map((header, colIdx) => {
-                    const isHeaderCell = rowIdx === 0 || colIdx === 0;
-                    const isDataCell = rowIdx > 0 && colIdx > 0;
-                    return (
-                      <td
-                        key={colIdx}
-                        className={`border border-gray-100 dark:border-white/[0.05] px-3 py-2 text-center
-                          ${isHeaderCell
-                            ? "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold"
-                            : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-400"
-                          }
-                        `}
-                      >
-                        {rowIdx === 0 ? (
-                          header
-                        ) : colIdx === 0 ? (
-                          ROW_LABELS[rowIdx - 1]
-                        ) : isDataCell && isEditing ? (
-                          <input
-                            type="text"
-                            value={cellData[rowIdx - 1][colIdx - 1]}
-                            onChange={(e) =>
-                              onCellChange(rowIdx - 1, colIdx - 1, e.target.value)
-                            }
-                            className="w-full bg-transparent text-center text-gray-700 dark:text-gray-300 outline-none"
-                          />
-                        ) : (
-                          cellData[rowIdx - 1][colIdx - 1]
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
+type PendingItem = {
+  id: string;
+  file: File;
+  isGada: boolean;
+  isParsing: boolean;
+  parsed: GadaExcelData | null;
+  parseError: string | null;
+  status: ItemStatus;
+};
 
 // 파싱 결과 미리보기 카드
 function GadaParsePreview({ data }: { data: GadaExcelData }) {
@@ -139,93 +66,94 @@ function GadaParsePreview({ data }: { data: GadaExcelData }) {
   );
 }
 
+function statusColor(status: ItemStatus): string {
+  if (status === "성공") return "text-green-500";
+  if (status === "실패") return "text-red-500";
+  return "text-amber-500";
+}
+
 export default function DataUpload() {
-  // ── 기존 상태 ───────────────────────────────────────────────────────
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [rawDigits, setRawDigits] = useState("");
-  const [cellDataLeft, setCellDataLeft] = useState<CellData>(initialCellData);
-  const [cellDataRight, setCellDataRight] = useState<CellData>(initialCellData);
-
-  // ── 가다실 엑셀 파싱 상태 ────────────────────────────────────────────
-  const [gadaParsed, setGadaParsed] = useState<GadaExcelData | null>(null);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [isParsing, setIsParsing] = useState(false);
+  const [items, setItems] = useState<PendingItem[]>([]);
   const { setGadaData, addUploadLog } = useGadaData();
-  const navigate = useNavigate();
 
-  // ── Ghost text 포맷 계산 ─────────────────────────────────────────────
-  const year = rawDigits.slice(0, 4);
-  const month = rawDigits.slice(4, 6);
-  let typedStr: string;
-  let ghostStr: string;
-  if (year.length < 4) {
-    typedStr = year;
-    ghostStr = "YYYY".slice(year.length) + "-MM 데이터";
-  } else if (month.length < 2) {
-    typedStr = year + "-" + month;
-    ghostStr = "MM".slice(month.length) + " 데이터";
-  } else {
-    typedStr = year + "-" + month + " 데이터";
-    ghostStr = "";
-  }
-
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
-    setRawDigits(digits);
-  };
-
-  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      setRawDigits((prev) => prev.slice(0, -1));
-    }
-  };
-
-  const handleSave = () => {
-    setIsEditing(false);
-    console.log("저장:", typedStr, cellDataLeft, cellDataRight);
-  };
-
-  // ── 드롭존: xlsx만 허용, 업로드 즉시 브라우저 메모리에서 파싱 ──────────
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+  // ── 드롭존: xlsx 허용, 드롭 즉시 가다실 파일은 브라우저 메모리에서 파싱 ──
+  const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
-    const file = acceptedFiles[0];
-    setPendingFile(file);
-    setGadaParsed(null);
-    setParseError(null);
 
-    if (isGadaFile(file.name)) {
-      setIsParsing(true);
-      try {
-        const parsed = await parseGadaExcel(file);
-        setGadaParsed(parsed);
-      } catch (err) {
-        setParseError(
-          "파싱 실패: " + (err instanceof Error ? err.message : String(err))
-        );
-      } finally {
-        setIsParsing(false);
-      }
+    const newItems: PendingItem[] = acceptedFiles.map((file) => {
+      const gada = isGadaFile(file.name);
+      return {
+        id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        isGada: gada,
+        isParsing: gada,
+        parsed: null,
+        parseError: null,
+        status: "대기" as ItemStatus,
+      };
+    });
+
+    setItems((prev) => [...prev, ...newItems]);
+
+    // 가다실 파일은 비동기 파싱 후 해당 항목만 갱신
+    for (const item of newItems) {
+      if (!item.isGada) continue;
+      parseGadaExcel(item.file)
+        .then((parsed) => {
+          setItems((prev) =>
+            prev.map((it) =>
+              it.id === item.id ? { ...it, parsed, isParsing: false } : it
+            )
+          );
+        })
+        .catch((err) => {
+          setItems((prev) =>
+            prev.map((it) =>
+              it.id === item.id
+                ? {
+                    ...it,
+                    parseError:
+                      "파싱 실패: " +
+                      (err instanceof Error ? err.message : String(err)),
+                    isParsing: false,
+                  }
+                : it
+            )
+          );
+        });
     }
   }, []);
 
   const handleUploadSave = () => {
-    if (!pendingFile) return;
-    const filename = pendingFile.name;
-    if (gadaParsed) {
-      setGadaData(gadaParsed);
-      addUploadLog(filename, "success", "admin");
-      setPendingFile(null);
-      setGadaParsed(null);
-      setParseError(null);
-      navigate("/");
-      return;
+    const pending = items.filter((it) => it.status === "대기" && !it.isParsing);
+    if (pending.length === 0) return;
+
+    let lastGada: GadaExcelData | null = null;
+    let lastGadaName: string | null = null;
+    const result = new Map<string, ItemStatus>();
+
+    for (const it of pending) {
+      if (it.isGada) {
+        if (it.parsed) {
+          lastGada = it.parsed;
+          lastGadaName = it.file.name;
+          addUploadLog(it.file.name, "success", "admin");
+          result.set(it.id, "성공");
+        } else {
+          addUploadLog(it.file.name, "fail", "admin");
+          result.set(it.id, "실패");
+        }
+      } else {
+        // 가다실 외 파일: 현재 파서 미구현 → 업로드 자체는 성공 처리
+        addUploadLog(it.file.name, "success", "admin");
+        result.set(it.id, "성공");
+      }
     }
-    // 파싱 실패 또는 미지원 파일
-    addUploadLog(filename, parseError ? "fail" : "pending", "admin");
-    setPendingFile(null);
-    setParseError(null);
+
+    if (lastGada) setGadaData(lastGada, lastGadaName);
+    setItems((prev) =>
+      prev.map((it) => (result.has(it.id) ? { ...it, status: result.get(it.id)! } : it))
+    );
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -235,18 +163,12 @@ export default function DataUpload() {
         ".xlsx",
       ],
     },
-    multiple: false,
+    multiple: true,
   });
 
-  const makeCellHandler =
-    (setter: React.Dispatch<React.SetStateAction<CellData>>) =>
-    (row: number, col: number, value: string) => {
-      setter((prev) => {
-        const updated = prev.map((r) => [...r]);
-        updated[row][col] = value;
-        return updated;
-      });
-    };
+  // 박스에는 가장 최근 가다실 파일의 파싱 상태/통계를 표시
+  const latestGada = [...items].reverse().find((it) => it.isGada) ?? null;
+  const hasActionable = items.some((it) => it.status === "대기" && !it.isParsing);
 
   return (
     <>
@@ -273,7 +195,7 @@ export default function DataUpload() {
               </span>
               <button
                 onClick={handleUploadSave}
-                disabled={!pendingFile || isParsing}
+                disabled={!hasActionable}
                 className="h-7 px-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 업로드 저장
@@ -290,29 +212,25 @@ export default function DataUpload() {
               `}
             >
               <input {...getInputProps()} />
-              <div className="flex min-h-[120px] flex-col items-center justify-center gap-3 px-6 py-5">
-                {isParsing ? (
+              <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-6 py-5">
+                {latestGada?.isParsing ? (
                   <>
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       파일 분석 중…
                     </span>
                   </>
-                ) : gadaParsed ? (
-                  <GadaParsePreview data={gadaParsed} />
-                ) : parseError ? (
+                ) : latestGada?.parsed ? (
+                  <GadaParsePreview data={latestGada.parsed} />
+                ) : latestGada?.parseError ? (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-sm font-medium text-red-500">
-                      {parseError}
+                      {latestGada.parseError}
                     </span>
                     <span className="text-xs text-gray-400">
                       다시 파일을 드래그하거나 클릭해서 선택하세요
                     </span>
                   </div>
-                ) : pendingFile ? (
-                  <span className="text-sm font-medium text-brand-500">
-                    {pendingFile.name}
-                  </span>
                 ) : (
                   <>
                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
@@ -333,83 +251,65 @@ export default function DataUpload() {
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        엑셀 파일 업로드 (드래그 앤 드롭)
+                        엑셀 파일 업로드 (드래그 앤 드롭 · 여러 개 가능)
                       </p>
                       <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                        지원 형식: 한국(MSD) 가다실 M월 통계.xlsx
+                        지원 형식: .xlsx
                       </p>
                     </div>
                   </>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* 구분선 */}
-          <hr className="border-gray-200 dark:border-gray-700" />
-
-          {/* 데이터 입력 섹션 */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                데이터 입력
-              </span>
-              <div className="flex items-center gap-1.5">
-                <div
-                  className={`relative h-7 w-40 rounded-lg border transition-colors duration-200 overflow-hidden
-                    ${isEditing
-                      ? "border-brand-500 bg-white dark:bg-gray-900"
-                      : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
-                    }
-                  `}
-                >
-                  <div
-                    className="absolute inset-0 flex items-center px-3 text-xs pointer-events-none select-none whitespace-pre"
-                    aria-hidden
-                  >
-                    <span className="invisible">{typedStr}</span>
-                    <span className="text-gray-300 dark:text-gray-600">{ghostStr}</span>
-                  </div>
-                  <input
-                    type="text"
-                    value={typedStr}
-                    onChange={handleTitleChange}
-                    onKeyDown={handleTitleKeyDown}
-                    disabled={!isEditing}
-                    className="absolute inset-0 w-full h-full bg-transparent text-xs text-gray-900 dark:text-white px-3 outline-none disabled:cursor-default"
-                  />
+            {/* 업로드 대기 파일 리스트 */}
+            {items.length > 0 && (
+              <>
+                <hr className="border-gray-200 dark:border-gray-700" />
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    업로드 대기
+                  </span>
+                  <ul className="flex flex-col gap-1.5">
+                    {items.map((it) => (
+                      <li
+                        key={it.id}
+                        className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2"
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="shrink-0 text-gray-400"
+                        >
+                          <path
+                            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M14 2v6h6"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                          {it.file.name}
+                        </span>
+                        <span
+                          className={`ml-auto shrink-0 text-[11px] font-medium ${statusColor(it.status)}`}
+                        >
+                          {it.isParsing ? "분석 중" : it.status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  disabled={isEditing}
-                  className="h-7 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  수정
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={!isEditing}
-                  className="h-7 px-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  저장
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <DataTable
-                title="전체 결과(로그인 무관)"
-                isEditing={isEditing}
-                cellData={cellDataLeft}
-                onCellChange={makeCellHandler(setCellDataLeft)}
-              />
-              <DataTable
-                title="세부 결과(로그인 이후)"
-                isEditing={isEditing}
-                cellData={cellDataRight}
-                onCellChange={makeCellHandler(setCellDataRight)}
-              />
-            </div>
+              </>
+            )}
           </div>
 
         </div>

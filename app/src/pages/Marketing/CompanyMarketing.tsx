@@ -298,7 +298,10 @@ function ResponsiveDonut({
     const el = wrapRef.current;
     if (!el) return;
     const update = () => {
-      const d = Math.floor(Math.min(el.clientWidth, el.clientHeight) * 0.8) - 8;
+      // 라벨이 차지하는 높이(약 24px)를 제외하고 도넛 크기를 계산해
+      // 라벨을 도넛 바로 아래로 붙여도 도넛 크기가 변하지 않도록 한다.
+      const avail = el.clientHeight - 24;
+      const d = Math.floor(Math.min(el.clientWidth, avail) * 0.8) - 8;
       if (d > 0) setSize(Math.max(100, d));
     };
     update();
@@ -308,7 +311,7 @@ function ResponsiveDonut({
   }, []);
   return (
     <div className="flex flex-col items-center flex-1 min-h-0 min-w-0">
-      <div ref={wrapRef} className="flex-1 min-h-0 w-full min-w-0 overflow-hidden flex items-center justify-center">
+      <div ref={wrapRef} className="flex-1 min-h-0 w-full min-w-0 overflow-hidden flex flex-col items-center justify-center">
         <div className="relative rounded-full bg-gray-50 p-1">
           <Chart
             key={chartKey}
@@ -327,11 +330,23 @@ function ResponsiveDonut({
             </span>
           </div>
         </div>
+        <span className="mt-2 text-[11px] font-normal text-gray-500 dark:text-gray-400">
+          {label}
+        </span>
       </div>
-      <span className="mt-3 text-[11px] font-normal text-gray-500 dark:text-gray-400">
-        {label}
-      </span>
     </div>
+  );
+}
+
+// ── 페이지 제목 ─────────────────────────────────────────────────────────
+// 앞부분("기업체별 마케팅 현황")은 차트 제목(text-sm)보다 2pt 큰 Bold,
+// dash 뒷부분은 차트 제목과 동일한 폰트(text-sm font-bold).
+function PageTitle({ main, sub }: { main: string; sub?: string }) {
+  return (
+    <h2 className="shrink-0 text-gray-900 dark:text-white">
+      <span className="text-base font-bold">{main}</span>
+      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
+    </h2>
   );
 }
 
@@ -350,6 +365,7 @@ function SectionCharts({
   areaOpts,
   areaSeries,
   prefix,
+  subTitle,
   onOpenModal,
 }: {
   gadaMonth: number;
@@ -365,12 +381,14 @@ function SectionCharts({
   areaOpts: ApexOptions;
   areaSeries: { name: string; data: number[] }[];
   prefix: string;
+  subTitle: string;
   onOpenModal: () => void;
 }) {
   return (
     <>
-      {/* 컨트롤 바 */}
-      <div className="shrink-0 flex items-center justify-end px-6 py-2 border-b border-gray-100 dark:border-gray-700">
+      {/* 페이지 제목 + 컨트롤 바 */}
+      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+        <PageTitle main="기업체별 마케팅 현황" sub={subTitle} />
         <button
           onClick={onOpenModal}
           className="h-7 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -435,7 +453,7 @@ function SectionCharts({
         <div className="w-1/2 flex flex-col min-h-0">
 
           {/* 상단: 도넛 두 개 */}
-          <div className="flex-1 flex flex-col px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex-1 flex flex-col px-6 pt-5 pb-1 border-b border-gray-100 dark:border-gray-700">
             <h2 className="shrink-0 mb-4 text-sm font-bold text-gray-800 dark:text-white">
               해당월 성별 비율
             </h2>
@@ -458,7 +476,7 @@ function SectionCharts({
           </div>
 
           {/* 하단: 면적 차트 */}
-          <div className="flex-1 flex flex-col px-6 pt-5 pb-4 min-h-0">
+          <div className="flex-1 flex flex-col px-6 pt-2 pb-4 min-h-0">
             <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
               월별 남성/여성 통계 추이
             </h2>
@@ -484,7 +502,7 @@ export default function CompanyMarketing() {
   const { currentTheme } = useColorTheme();
   const { gadaData } = useGadaData();
 
-  // ── 섹션2: a(totalMale) / b(totalFemale) 수동 입력 ──────────────────
+  // ── 섹션2: a(packageMale) / b(packageFemale) 수동 입력 ──────────────
   const [monthlyData, setMonthlyData] = useState<MonthlyEntry[]>(() =>
     Array(12).fill(null).map(() => ({ male: 0, female: 0 }))
   );
@@ -493,7 +511,7 @@ export default function CompanyMarketing() {
     const idx = gadaData.month - 1;
     setMonthlyData(prev => {
       const next = [...prev];
-      next[idx] = { male: gadaData.genderStats.totalMale, female: gadaData.genderStats.totalFemale };
+      next[idx] = { male: gadaData.genderStats.packageMale, female: gadaData.genderStats.packageFemale };
       return next;
     });
   }, [gadaData]);
@@ -678,19 +696,26 @@ export default function CompanyMarketing() {
         <div className="flex-1 overflow-y-auto">
 
           {/* ══ 섹션 1: 통합 통계 (준비 중) ═══════════════════════════════ */}
-          <div className="min-h-full flex items-center justify-center bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
             {!gadaData ? (
               <EmptyState />
             ) : (
-              <div className="text-center">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700">
-                  <svg className="text-gray-300 dark:text-gray-500" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" />
-                  </svg>
+              <>
+                <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <PageTitle main="통합 통계" />
                 </div>
-                <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">통합 통계</p>
-                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">준비 중입니다</p>
-              </div>
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700">
+                      <svg className="text-gray-300 dark:text-gray-500" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">통합 통계</p>
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">준비 중입니다</p>
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -713,6 +738,7 @@ export default function CompanyMarketing() {
                 areaOpts={areaOptions}
                 areaSeries={areaSeries}
                 prefix="s2"
+                subTitle="검진유형 패키지 성별 통계내역"
                 onOpenModal={openModal}
               />
             )}
@@ -737,6 +763,7 @@ export default function CompanyMarketing() {
                 areaOpts={areaOptions3}
                 areaSeries={areaSeries3}
                 prefix="s3"
+                subTitle="선택 추가항목 성별 통계내역"
                 onOpenModal={openModal3}
               />
             )}
