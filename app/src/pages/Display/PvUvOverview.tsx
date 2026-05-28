@@ -1,11 +1,9 @@
-import { useLayoutEffect, useRef, useState } from "react";
 import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
 import type { DisplayAdData } from "../../types/gada";
 
 // 표 크기를 고정하는 기준 뷰포트 높이(px). 창 높이가 이 값 이상이면 표는 더 커지지 않음.
-const FIXED_VIEWPORT_HEIGHT = 980;
 
 // ── 페이지 제목 ─────────────────────────────────────────────────────────
 // CompanyMarketing 의 PageTitle 과 동일한 폰트 스타일.
