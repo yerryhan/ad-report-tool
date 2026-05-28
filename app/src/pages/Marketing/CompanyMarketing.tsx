@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import { Link } from "react-router";
@@ -22,8 +22,6 @@ type MonthlyEntry = { male: number; female: number };
 function makeDonutOpts(
   fillColors: [string, string],
   strokeColor: string,
-  centerText: string,
-  centerColor: string,
 ): ApexOptions {
   return {
     chart: {
@@ -41,18 +39,9 @@ function makeDonutOpts(
       pie: {
         donut: {
           size: "52%",
-          labels: {
-            show: true,
-            total: {
-              show: true,
-              showAlways: true,
-              label: "",
-              fontSize: "22px",
-              fontWeight: 700,
-              color: centerColor,
-              formatter: () => centerText,
-            },
-          },
+          // 중앙 % 텍스트는 ApexCharts 라벨 대신 HTML 오버레이로 그려서
+          // 차트 크기와 무관하게 항상 정확히 가운데 정렬되도록 한다.
+          labels: { show: false },
         },
       },
     },
@@ -124,6 +113,7 @@ function makeAreaOptions(yMax: number, mainColor: string, subColor: string): Ape
     chart: {
       type: "area",
       toolbar: { show: false },
+      zoom: { enabled: false, allowMouseWheelZoom: false },
       fontFamily: "Outfit, sans-serif",
       animations: { enabled: false },
       background: "transparent",
@@ -288,6 +278,63 @@ function DataInputModal({
   );
 }
 
+// ── 반응형 도넛: 컨테이너 크기에 맞춰 정사각형으로 스케일 ───────────────
+function ResponsiveDonut({
+  chartKey,
+  options,
+  series,
+  label,
+  centerText,
+}: {
+  chartKey: string;
+  options: ApexOptions;
+  series: number[];
+  label: string;
+  centerText: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState(150);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => {
+      const d = Math.floor(Math.min(el.clientWidth, el.clientHeight) * 0.8) - 8;
+      if (d > 0) setSize(Math.max(100, d));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div className="flex flex-col items-center flex-1 min-h-0 min-w-0">
+      <div ref={wrapRef} className="flex-1 min-h-0 w-full min-w-0 overflow-hidden flex items-center justify-center">
+        <div className="relative rounded-full bg-gray-50 p-1">
+          <Chart
+            key={chartKey}
+            options={options}
+            series={series}
+            type="donut"
+            width={size}
+            height={size}
+          />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span
+              className="font-semibold leading-none"
+              style={{ color: "#000000", fontSize: Math.max(9, Math.round(size * 0.14) - 4.5) }}
+            >
+              {centerText}
+            </span>
+          </div>
+        </div>
+      </div>
+      <span className="mt-3 text-[11px] font-normal text-gray-500 dark:text-gray-400">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 // ── 섹션 공통: 차트 레이아웃 ─────────────────────────────────────────────
 function SectionCharts({
   gadaMonth,
@@ -298,6 +345,8 @@ function SectionCharts({
   leftDonutOpts,
   rightDonutOpts,
   donutSeries,
+  leftCenterText,
+  rightCenterText,
   areaOpts,
   areaSeries,
   prefix,
@@ -311,6 +360,8 @@ function SectionCharts({
   leftDonutOpts: ApexOptions;
   rightDonutOpts: ApexOptions;
   donutSeries: number[];
+  leftCenterText: string;
+  rightCenterText: string;
   areaOpts: ApexOptions;
   areaSeries: { name: string; data: number[] }[];
   prefix: string;
@@ -324,7 +375,7 @@ function SectionCharts({
           onClick={onOpenModal}
           className="h-7 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
-          이전 데이터 입력
+          데이터 수정
         </button>
       </div>
 
@@ -388,37 +439,21 @@ function SectionCharts({
             <h2 className="shrink-0 mb-4 text-sm font-bold text-gray-800 dark:text-white">
               해당월 성별 비율
             </h2>
-            <div className="flex flex-1 items-center justify-center gap-20">
-              <div className="flex flex-col items-center">
-                <div className="rounded-full bg-gray-50 p-1">
-                  <Chart
-                    key={`${prefix}-donut-m-${gadaMonth}-${themeName}`}
-                    options={leftDonutOpts}
-                    series={donutSeries}
-                    type="donut"
-                    width={190}
-                    height={190}
-                  />
-                </div>
-                <span className="mt-3 text-[11px] font-normal text-gray-500 dark:text-gray-400">
-                  해당월 남성 비율
-                </span>
-              </div>
-              <div className="flex flex-col items-center">
-                <div className="rounded-full bg-gray-50 p-1">
-                  <Chart
-                    key={`${prefix}-donut-f-${gadaMonth}-${themeName}`}
-                    options={rightDonutOpts}
-                    series={donutSeries}
-                    type="donut"
-                    width={190}
-                    height={190}
-                  />
-                </div>
-                <span className="mt-3 text-[11px] font-normal text-gray-500 dark:text-gray-400">
-                  해당월 여성 비율
-                </span>
-              </div>
+            <div className="flex flex-1 items-stretch justify-center gap-8 min-h-0">
+              <ResponsiveDonut
+                chartKey={`${prefix}-donut-m-${gadaMonth}-${themeName}`}
+                options={leftDonutOpts}
+                series={donutSeries}
+                label="해당월 남성 비율"
+                centerText={leftCenterText}
+              />
+              <ResponsiveDonut
+                chartKey={`${prefix}-donut-f-${gadaMonth}-${themeName}`}
+                options={rightDonutOpts}
+                series={donutSeries}
+                label="해당월 여성 비율"
+                centerText={rightCenterText}
+              />
             </div>
           </div>
 
@@ -556,14 +591,12 @@ export default function CompanyMarketing() {
     [stats],
   );
   const leftDonutOpts = useMemo(
-    () => makeDonutOpts([currentTheme.main, "#FFFFFF"], currentTheme.main, `${stats?.aPct ?? 0}%`, currentTheme.main),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stats?.aPct, currentTheme.main],
+    () => makeDonutOpts([currentTheme.main, "#FFFFFF"], currentTheme.main),
+    [currentTheme.main],
   );
   const rightDonutOpts = useMemo(
-    () => makeDonutOpts(["#FFFFFF", currentTheme.sub], currentTheme.sub, `${stats?.bPct ?? 0}%`, currentTheme.sub),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stats?.bPct, currentTheme.sub],
+    () => makeDonutOpts(["#FFFFFF", currentTheme.sub], currentTheme.sub),
+    [currentTheme.sub],
   );
   const donutSeries = useMemo(
     () => stats && stats.aPct + stats.bPct > 0 ? [stats.aPct, stats.bPct] : [50, 50],
@@ -597,14 +630,12 @@ export default function CompanyMarketing() {
     [stats3],
   );
   const leftDonutOpts3 = useMemo(
-    () => makeDonutOpts([currentTheme.main, "#FFFFFF"], currentTheme.main, `${stats3?.cPct ?? 0}%`, currentTheme.main),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stats3?.cPct, currentTheme.main],
+    () => makeDonutOpts([currentTheme.main, "#FFFFFF"], currentTheme.main),
+    [currentTheme.main],
   );
   const rightDonutOpts3 = useMemo(
-    () => makeDonutOpts(["#FFFFFF", currentTheme.sub], currentTheme.sub, `${stats3?.dPct ?? 0}%`, currentTheme.sub),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stats3?.dPct, currentTheme.sub],
+    () => makeDonutOpts(["#FFFFFF", currentTheme.sub], currentTheme.sub),
+    [currentTheme.sub],
   );
   const donutSeries3 = useMemo(
     () => stats3 && stats3.cPct + stats3.dPct > 0 ? [stats3.cPct, stats3.dPct] : [50, 50],
@@ -677,6 +708,8 @@ export default function CompanyMarketing() {
                 leftDonutOpts={leftDonutOpts}
                 rightDonutOpts={rightDonutOpts}
                 donutSeries={donutSeries}
+                leftCenterText={`${stats.aPct}%`}
+                rightCenterText={`${stats.bPct}%`}
                 areaOpts={areaOptions}
                 areaSeries={areaSeries}
                 prefix="s2"
@@ -699,6 +732,8 @@ export default function CompanyMarketing() {
                 leftDonutOpts={leftDonutOpts3}
                 rightDonutOpts={rightDonutOpts3}
                 donutSeries={donutSeries3}
+                leftCenterText={`${stats3.cPct}%`}
+                rightCenterText={`${stats3.dPct}%`}
                 areaOpts={areaOptions3}
                 areaSeries={areaSeries3}
                 prefix="s3"
@@ -713,7 +748,7 @@ export default function CompanyMarketing() {
       {/* ── 섹션2 이전 데이터 입력 모달 ──────────────────────────────── */}
       {showModal && (
         <DataInputModal
-          title="이전 데이터 입력"
+          title="데이터 수정"
           modalData={modalData}
           currentMonth={gadaData?.month}
           onChangeCell={handleModalCell}
@@ -725,7 +760,7 @@ export default function CompanyMarketing() {
       {/* ── 섹션3 이전 데이터 입력 모달 ──────────────────────────────── */}
       {showModal3 && (
         <DataInputModal
-          title="이전 데이터 입력"
+          title="데이터 수정"
           modalData={modalData3}
           currentMonth={gadaData?.month}
           onChangeCell={handleModalCell3}

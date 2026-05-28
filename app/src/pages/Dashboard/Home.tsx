@@ -2,7 +2,8 @@ import PageMeta from "../../components/common/PageMeta";
 
 const formattedDate = (() => {
   const now = new Date();
-  return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${prev.getFullYear()}.${String(prev.getMonth() + 1).padStart(2, "0")}`;
 })();
 
 export default function Home() {
@@ -16,7 +17,7 @@ export default function Home() {
         {/* Page Top Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {formattedDate}
+            {formattedDate} 리포트
           </h1>
           <button
             onClick={() => {
