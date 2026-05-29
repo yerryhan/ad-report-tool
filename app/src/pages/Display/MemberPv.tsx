@@ -1,7 +1,14 @@
+import { useEffect, useState } from "react";
 import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
-import type { MemberRegion, MemberStatsData } from "../../types/gada";
+import type {
+  MemberAgeCounts,
+  MemberGenderKey,
+  MemberRegion,
+  MemberStatsData,
+} from "../../types/gada";
+import { MEMBER_AREA_LABELS } from "../../types/gada";
 import koreaMapUrl from "../../assets/korea-map.svg";
 
 // 색상 (PvUvOverview 와 동일 팔레트 기준)
@@ -134,39 +141,42 @@ function RegionTable({ data }: { data: MemberStatsData | null }) {
   );
 }
 
-// ── 대한민국 지도 (그레이100 실루엣 + 약한 드롭섀도우 + 지역 라벨) ────────
-// 원본 korea-map.svg 는 색칠된 PNG(배경 투명)라 알파를 마스크로 써서
-// 회색 사각형을 땅 모양으로 오려낸다. 색은 지역 위치 마커 → 라벨 좌표로 사용.
+// ── 대한민국 지도 (그레이300 실루엣 + 드롭섀도우 + 라벨) ─────────────────
+// 원본 korea-map.svg 는 지역별로 다른 색으로 채워진 PNG(배경 투명).
+// 알파를 마스크로 써서 회색 사각형을 땅 모양으로 오려낸다(실루엣).
 // 좌표계: 원본 PNG 픽셀(2370×3449) 기준. (색 중심좌표는 픽셀 분석으로 산출)
 const MAP_W = 2370;
 const MAP_H = 3449;
 
-// 지역 라벨: 칩 위치(좌/우) + 연결 대상 좌표(ax, ay).
+const GREY_300 = "#D1D5DB"; // 지도 fill 색
+
+// 지역 라벨: 칩 위치(좌/우) + 연결 대상 좌표(ax, ay) + 집계 키(key).
 type LabelDef = {
-  text: string;
+  key: MemberRegion;
   side: "left" | "right";
   y: number; // 칩 top
   ax: number; // 리더선이 가리키는 지점 (해당 색 위치)
   ay: number;
 };
 const REGION_LABELS: LabelDef[] = [
-  { text: "서울", side: "left", y: 420, ax: 615, ay: 752 }, // 빨강
-  { text: "경기(인천)", side: "left", y: 980, ax: 940, ay: 1040 }, // 노랑
-  { text: "충청", side: "left", y: 1520, ax: 824, ay: 1430 }, // 그린
-  { text: "전라", side: "left", y: 2380, ax: 607, ay: 2459 }, // 시안
-  { text: "강원", side: "right", y: 420, ax: 1347, ay: 628 }, // 마젠타
-  { text: "경상", side: "right", y: 1640, ax: 1539, ay: 1876 }, // 블루
+  { key: "서울", side: "left", y: 420, ax: 615, ay: 752 }, // 빨강
+  { key: "경기(인천)", side: "left", y: 980, ax: 940, ay: 1040 }, // 노랑
+  { key: "충청", side: "left", y: 1520, ax: 824, ay: 1430 }, // 그린
+  { key: "전라", side: "left", y: 2380, ax: 607, ay: 2459 }, // 시안
+  { key: "강원", side: "right", y: 420, ax: 1347, ay: 628 }, // 마젠타
+  { key: "경상", side: "right", y: 1640, ax: 1539, ay: 1876 }, // 블루
 ];
-const CHIP_W = 700;
-const CHIP_H = 210;
-const LEFT_X = -800;
-const RIGHT_X = 2470;
+const CHIP_W = 900;
+const CHIP_H = 260;
+const LEFT_X = -1020; // 좌측 칩: 오른쪽 모서리 ≈ -120
+const RIGHT_X = 2490; // 우측 칩: 왼쪽 모서리
 
-function KoreaMap() {
+function KoreaMap({ data }: { data: MemberStatsData | null }) {
+  const total = data?.totalPv ?? 0;
   return (
     <div className="flex h-full w-full items-center justify-center p-4">
       <svg
-        viewBox="-840 -160 4050 3849"
+        viewBox="-1120 -180 4630 3729"
         width="100%"
         height="100%"
         preserveAspectRatio="xMidYMid meet"
@@ -193,37 +203,40 @@ function KoreaMap() {
               filter="url(#toWhite)"
             />
           </mask>
-          {/* 연한 드롭섀도우 (지도 모양 기준) */}
-          <filter id="mapShadow" x="-20%" y="-20%" width="140%" height="140%">
+          {/* 드롭섀도우: 오른쪽 아래 45°로 떨어지게(왼쪽 위에는 그림자 없음) */}
+          <filter id="mapShadow" x="-10%" y="-10%" width="140%" height="140%">
             <feDropShadow
-              dx="0"
-              dy="40"
-              stdDeviation="45"
+              dx="80"
+              dy="80"
+              stdDeviation="22"
               floodColor="#000000"
-              floodOpacity="0.15"
+              floodOpacity="0.2"
             />
           </filter>
         </defs>
 
-        {/* 그레이100 실루엣 */}
+        {/* 그레이300 실루엣 (+드롭섀도우) */}
         <g filter="url(#mapShadow)">
           <rect
             x={0}
             y={0}
             width={MAP_W}
             height={MAP_H}
-            fill={GREY_200}
+            fill={GREY_300}
             mask="url(#koreaMask)"
           />
         </g>
 
-        {/* 지역 라벨 (둥근 네모 + 리더선) */}
+        {/* 지역 라벨 (둥근 네모 + 리더선): 1행 지역명 + 2행 "PV n (p%)" */}
         {REGION_LABELS.map((l) => {
           const x = l.side === "left" ? LEFT_X : RIGHT_X;
           const innerEdgeX = l.side === "left" ? x + CHIP_W : x;
           const midY = l.y + CHIP_H / 2;
+          const pv = data?.regionPv[l.key] ?? 0;
+          const ratio = total > 0 ? ((pv / total) * 100).toFixed(1) : "0.0";
+          const cx = x + CHIP_W / 2;
           return (
-            <g key={l.text}>
+            <g key={l.key}>
               <line
                 x1={innerEdgeX}
                 y1={midY}
@@ -240,20 +253,35 @@ function KoreaMap() {
                 height={CHIP_H}
                 rx={40}
                 fill="#FFFFFF"
-                stroke="#D1D5DB"
+                stroke={GREY_300}
                 strokeWidth={4}
               />
+              {/* 1행: 지역명 (디자인 규칙 유지) */}
               <text
-                x={x + CHIP_W / 2}
-                y={midY}
+                x={cx}
+                y={l.y + 95}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={120}
+                fontSize={110}
                 fontWeight={600}
                 fill="#111827"
               >
-                {l.text}
+                {l.key}
               </text>
+              {/* 2행: PV 수치 (왼쪽 표 수치와 동일한 크기/두께/색) */}
+              {data && (
+                <text
+                  x={cx}
+                  y={l.y + 195}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={76}
+                  fontWeight={400}
+                  fill="#000000"
+                >
+                  {`PV ${fmtNum(pv)} (${ratio}%)`}
+                </text>
+              )}
             </g>
           );
         })}
@@ -262,9 +290,223 @@ function KoreaMap() {
   );
 }
 
+// ── 반응형 스케일 (PvUvOverview 와 동일 규약) ────────────────────────────
+// 표+지도 묶음을 본래 크기로 그린 뒤 균일 배율로 스케일한다(표:지도 비율 고정).
+// PV/UV 전체 현황 표(폭 1404)와 같은 영역을 채우도록 기준 배율 FILL_SCALE 사용.
+const BASE_VIEWPORT_HEIGHT = 980; // 이 높이 이상이면 더 커지지 않음
+const TABLE_BLOCK_W = 480; // 왼쪽 표 폭
+const GAP = 32; // 표↔지도 간격 (gap-8)
+const MAP_BASE_W = 620; // 지도 폭 (현재 비율 유지 기준)
+const MAP_ASPECT = 4630 / 3729; // KoreaMap viewBox 비율 (w/h)
+const COMPOSITE_W = TABLE_BLOCK_W + GAP + MAP_BASE_W; // 1132
+const COMPOSITE_H = MAP_BASE_W / MAP_ASPECT; // ≈ 499 (지도 높이가 가장 큼)
+const FILL_SCALE = 1404 / COMPOSITE_W; // PV/UV 표 폭(1404)에 맞춤 ≈ 1.24
+
+// 뷰포트 높이에 따른 배율(PvUvOverview 규약): 높이 < 980 → 비례 축소, ≥ 980 → 1.
+function useHeightScale(): number {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const update = () =>
+      setScale(Math.min(1, window.innerHeight / BASE_VIEWPORT_HEIGHT));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return scale;
+}
+
+// 슬라이드 1(성별/연령대 표)의 기준 크기(px). 가로폭은 PV/UV 표(1404)와 동일,
+// 세로폭은 PV/UV(720)의 80% = 576.
+const TABLE_BASE_W = 1404;
+const TABLE_BASE_H = 576;
+
+// ── 광고 영역별 성별/연령대별 통합 통계 표 ───────────────────────────────
+// 3단 복합 헤더(광고영역 / 기간 / 합계) × 성별(남/여/미기재) × 연령대(20~60대·기타·소계).
+// 데이터: 통계정보(회원) 엑셀의 영역(A)×성별(C)×나이(D) 집계(MemberStatsData.areaStats).
+
+// 1행 기간 라벨: 업로드 파일의 데이터 대상 연·월(year/month) 기준 자동 생성.
+//   "{year}. {MM}. 01. ~ {year}. {MM}. {말일}." (데이터 없으면 "—")
+function periodLabel(data: MemberStatsData | null): string {
+  if (!data || !data.year || data.month < 1 || data.month > 12) return "—";
+  const mm = String(data.month).padStart(2, "0");
+  const lastDay = new Date(data.year, data.month, 0).getDate();
+  return `${data.year}. ${mm}. 01. ~ ${data.year}. ${mm}. ${String(
+    lastDay
+  ).padStart(2, "0")}.`;
+}
+
+// 연령대 열(소계 제외) 키/라벨
+const AGE_KEYS: (keyof MemberAgeCounts)[] = [
+  "age20",
+  "age30",
+  "age40",
+  "age50",
+  "age60",
+  "etc",
+];
+const AGE_LABELS = ["20대", "30대", "40대", "50대", "60대", "기타"];
+
+// 성별 구획 (라벨 + 데이터 키). 순서대로 좌→우 배치.
+const GENDER_DEFS: { key: MemberGenderKey; label: string }[] = [
+  { key: "male", label: "남성" },
+  { key: "female", label: "여성" },
+  { key: "unknown", label: "* 성별 미기재" },
+];
+
+const EMPTY_AGE: MemberAgeCounts = {
+  age20: 0,
+  age30: 0,
+  age40: 0,
+  age50: 0,
+  age60: 0,
+  etc: 0,
+};
+
+function GenderAgeTable({ data }: { data: MemberStatsData | null }) {
+  const { currentTheme } = useColorTheme();
+  const main = currentTheme.main;
+  const hasData = data !== null;
+
+  // 영역 라벨 + 성별 → 연령대 카운트 (데이터 없으면 0)
+  const countsOf = (label: string, key: MemberGenderKey): MemberAgeCounts =>
+    data?.areaStats?.[label]?.[key] ?? EMPTY_AGE;
+
+  // 집계 헬퍼 (소계/합계는 모두 계산)
+  const sumAge = (g: MemberAgeCounts) => AGE_KEYS.reduce((s, k) => s + g[k], 0);
+  const rowTotal = (label: string) =>
+    GENDER_DEFS.reduce((s, g) => s + sumAge(countsOf(label, g.key)), 0);
+  const colTotal = (key: MemberGenderKey, ageKey: keyof MemberAgeCounts) =>
+    MEMBER_AREA_LABELS.reduce((s, l) => s + countsOf(l, key)[ageKey], 0);
+  const genderTotal = (key: MemberGenderKey) =>
+    MEMBER_AREA_LABELS.reduce((s, l) => s + sumAge(countsOf(l, key)), 0);
+  const grandTotal = MEMBER_AREA_LABELS.reduce((s, l) => s + rowTotal(l), 0);
+
+  // 데이터 없으면 빈 칸, 0 은 "-", 그 외 천단위 콤마
+  const num = (v: number) => (!hasData ? "" : v === 0 ? "-" : fmtNum(v));
+  const period = periodLabel(data);
+
+  // 공통 셀 스타일 (모든 셀 중앙 정렬). wrap=true 인 셀(1열)만 줄바꿈 허용.
+  const cell = (
+    bg: string,
+    white: boolean,
+    bold: boolean,
+    wrap = false
+  ): React.CSSProperties => ({
+    backgroundColor: bg,
+    color: white ? "#FFFFFF" : "#000000",
+    fontWeight: bold ? 700 : 400,
+    border: `1px solid ${BORDER}`,
+    textAlign: "center",
+    verticalAlign: "middle",
+    padding: "6px 4px",
+    fontSize: "14px",
+    lineHeight: 1.3,
+    whiteSpace: wrap ? "normal" : "nowrap",
+    wordBreak: wrap ? "keep-all" : "normal", // 한글은 어절(공백) 단위로 줄바꿈
+  });
+
+  // zebra(성별 구획): 남성=화이트, 여성=그레이100, 미기재=화이트
+  const sectionBg = (gi: number) => (gi % 2 === 0 ? WHITE : GREY_100);
+  const head = cell(main, true, true); // 1~3행 헤더: 메인컬러 + 화이트 + 볼드
+
+  return (
+    <table className="table-fixed border-collapse" style={{ width: "100%", height: "100%" }}>
+      <colgroup>
+        {/* 1열: 광고 영역 */}
+        <col style={{ width: 150 }} />
+        {/* 2~22열: 성별 3구획 × (연령 6 + 소계 1) = 21열 */}
+        {GENDER_DEFS.map((g) =>
+          [...AGE_LABELS, "소계"].map((_, i) => (
+            <col key={`${g.key}-c${i}`} style={{ width: 55 }} />
+          ))
+        )}
+        {/* 23열: 합계 */}
+        <col style={{ width: 95 }} />
+      </colgroup>
+
+      <thead>
+        {/* 1단 헤더 */}
+        <tr>
+          <th rowSpan={3} style={cell(main, true, true, true)}>
+            광고 영역
+          </th>
+          <th colSpan={21} style={head}>
+            {period}
+          </th>
+          <th rowSpan={3} style={head}>
+            합계
+          </th>
+        </tr>
+        {/* 2단 헤더: 성별 */}
+        <tr>
+          {GENDER_DEFS.map((g) => (
+            <th key={g.key} colSpan={7} style={head}>
+              {g.label}
+            </th>
+          ))}
+        </tr>
+        {/* 3단 헤더: 연령대 + 소계 */}
+        <tr>
+          {GENDER_DEFS.map((g) =>
+            [...AGE_LABELS, "소계"].map((lbl, i) => (
+              <th key={`${g.key}-h${i}`} style={head}>
+                {lbl}
+              </th>
+            ))
+          )}
+        </tr>
+      </thead>
+
+      <tbody>
+        {/* 데이터 행 (광고 영역 5개, 순서 고정) */}
+        {MEMBER_AREA_LABELS.map((label) => (
+          <tr key={label}>
+            {/* 1열: 광고 영역 (그레이100, 볼드, 줄바꿈 허용) */}
+            <td style={cell(GREY_100, false, true, true)}>{label}</td>
+            {GENDER_DEFS.map((g, gi) => {
+              const bg = sectionBg(gi);
+              const c = countsOf(label, g.key);
+              return [
+                ...AGE_KEYS.map((k) => (
+                  <td key={`${g.key}-${k}`} style={cell(bg, false, false)}>
+                    {num(c[k])}
+                  </td>
+                )),
+                <td key={`${g.key}-sub`} style={cell(bg, false, false)}>
+                  {num(sumAge(c))}
+                </td>,
+              ];
+            })}
+            {/* 23열: 합계 (그레이100) */}
+            <td style={cell(GREY_100, false, false)}>{num(rowTotal(label))}</td>
+          </tr>
+        ))}
+
+        {/* 최하단 합계 행 (그레이200 + 볼드) */}
+        <tr>
+          <td style={cell(GREY_200, false, true, true)}>합 계</td>
+          {GENDER_DEFS.map((g) => [
+            ...AGE_KEYS.map((k) => (
+              <td key={`tot-${g.key}-${k}`} style={cell(GREY_200, false, true)}>
+                {num(colTotal(g.key, k))}
+              </td>
+            )),
+            <td key={`tot-${g.key}-sub`} style={cell(GREY_200, false, true)}>
+              {num(genderTotal(g.key))}
+            </td>,
+          ])}
+          <td style={cell(GREY_200, false, true)}>{num(grandTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────────
 export default function MemberPv() {
   const { memberStatsData } = useGadaData();
+  const heightScale = useHeightScale();
+  const mapScale = FILL_SCALE * heightScale; // 지도 묶음: 채움 배율 × 높이 배율
 
   return (
     <>
@@ -283,29 +525,89 @@ export default function MemberPv() {
           </h1>
         </div>
 
-        {/* ── 스크롤 영역: 1920×1080(16:9) 슬라이드 ─────────────────── */}
+        {/* ── 스크롤 영역: 1920×1080(16:9) 슬라이드를 위→아래로 스크롤 ── */}
         <div className="flex-1 overflow-y-auto">
+          {/* 슬라이드 1: 성별/연령대 기준 (본문은 추후 작성) */}
+          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            {/* 슬라이드 제목 */}
+            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+              <PageTitle main="로그인 회원 성별/연령대 기준" sub="PV 현황" />
+            </div>
+            {/* 본문: 광고 영역별 성별/연령대별 통합 통계 표.
+                PV/UV 전체 현황과 동일한 여백(p-12)·스케일 규약. */}
+            <div className="flex-1 min-h-0 p-12 flex flex-col items-center justify-center">
+              {/* 스케일된 크기만큼만 자리를 차지하는 래퍼 */}
+              <div
+                style={{ width: TABLE_BASE_W * heightScale, height: TABLE_BASE_H * heightScale }}
+              >
+                <div
+                  style={{
+                    width: TABLE_BASE_W,
+                    height: TABLE_BASE_H,
+                    transform: `scale(${heightScale})`,
+                    transformOrigin: "top left",
+                  }}
+                >
+                  <GenderAgeTable data={memberStatsData} />
+                </div>
+              </div>
+              {/* 표 하단 주석 (두 번째 페이지 주석과 동일 디자인) */}
+              <div
+                className="shrink-0 mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
+                style={{ width: TABLE_BASE_W * heightScale }}
+              >
+                <p>
+                  * 기타 / 성별 미 기재 : 기업체 정책으로 인해 성별 정보 또는 연령
+                  정보를 제공하지 않는 경우
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 슬라이드 2: 전국 지역별 기준 (표 + 대한민국 지도) */}
           <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
             {/* 슬라이드 제목 */}
             <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="로그인 회원 전국 지역별 기준" sub="PV 현황" />
             </div>
 
-            {/* 본문: 왼쪽 지역별 표 + 오른쪽 대한민국 지도 */}
-            <div className="flex-1 min-h-0 flex gap-8 items-stretch p-12">
-              <div className="shrink-0 flex flex-col">
-                <RegionTable data={memberStatsData} />
+            {/* 본문: 왼쪽 지역별 표 + 오른쪽 대한민국 지도.
+                PV/UV 전체 현황과 동일한 여백(p-12) 안에서, 표:지도 비율을 고정한 채
+                뷰포트 높이에 따라 균일 스케일(반응형). */}
+            <div className="flex-1 min-h-0 p-12 flex items-center justify-center">
+              {/* 스케일된 크기만큼만 자리를 차지하는 래퍼 */}
+              <div
+                style={{ width: COMPOSITE_W * mapScale, height: COMPOSITE_H * mapScale }}
+              >
+                {/* 본래 크기로 그린 뒤 균일 비율로 스케일 → 비율 변형 없음 */}
                 <div
-                  className="mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
-                  style={{ width: 480 }}
+                  className="flex items-center"
+                  style={{
+                    width: COMPOSITE_W,
+                    height: COMPOSITE_H,
+                    columnGap: GAP,
+                    transform: `scale(${mapScale})`,
+                    transformOrigin: "top left",
+                  }}
                 >
-                  {TABLE_NOTES.map((line, i) => (
-                    <p key={i}>{line}</p>
-                  ))}
+                  <div className="shrink-0 flex flex-col" style={{ width: TABLE_BLOCK_W }}>
+                    <RegionTable data={memberStatsData} />
+                    <div
+                      className="mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
+                      style={{ width: TABLE_BLOCK_W }}
+                    >
+                      {TABLE_NOTES.map((line, i) => (
+                        <p key={i}>{line}</p>
+                      ))}
+                    </div>
+                  </div>
+                  <div
+                    className="shrink-0"
+                    style={{ width: MAP_BASE_W, aspectRatio: "4630 / 3729" }}
+                  >
+                    <KoreaMap data={memberStatsData} />
+                  </div>
                 </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <KoreaMap />
               </div>
             </div>
           </div>

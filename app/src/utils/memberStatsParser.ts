@@ -1,5 +1,12 @@
 import * as XLSX from 'xlsx';
-import type { MemberRegion, MemberStatsData } from '../types/gada';
+import type {
+  MemberAgeCounts,
+  MemberAreaStats,
+  MemberGenderKey,
+  MemberRegion,
+  MemberStatsData,
+} from '../types/gada';
+import { MEMBER_AREA_LABELS } from '../types/gada';
 
 // 파일명에 "통계정보(회원)" 이 포함된 .xls/.xlsx 를 이 형식으로 간주.
 // (예: 통계정보(회원)2026-05-04.xls) — 보통 .xls(구형 BIFF) 로 들어옴.
@@ -15,6 +22,16 @@ export function memberDataMonth(filename: string): number {
   const mm = parseInt(m[2], 10);
   if (mm < 1 || mm > 12) return 0;
   return mm === 1 ? 12 : mm - 1;
+}
+
+// 데이터 대상 연도: 파일명 연도. 단, 1월 파일은 전년 12월 데이터이므로 −1년. 못 찾으면 0.
+export function memberDataYear(filename: string): number {
+  const m = filename.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return 0;
+  const yyyy = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  if (mm < 1 || mm > 12) return 0;
+  return mm === 1 ? yyyy - 1 : yyyy;
 }
 
 // 지역 분류: "포함" 매칭, 시/도(앞 토큰) 우선.
@@ -56,6 +73,53 @@ function emptyRegionPv(): Record<MemberRegion, number> {
   };
 }
 
+// A열(영역) 엑셀 실제값 → 성별/연령대 표의 광고 영역 라벨 매핑.
+// (엑셀명 = 키, 표 라벨 = 값 / 사용자 제공 규칙)
+const EXCEL_AREA_TO_LABEL: Record<string, string> = {
+  메인페이지: '메인 페이지',
+  모음페이지: '이벤트 모음 페이지',
+  '병원 둘러보기 페이지': '검진센터 둘러보기 페이지',
+  '검진 예약 페이지': '건강검진 예약하기 페이지',
+  '예약정보 및 변경 페이지': '건강검진 예약 정보 조회 페이지',
+};
+
+// C열(성별): 남자→male, 여자→female, 그 외/공백→unknown(* 성별 미기재).
+export function classifyGender(raw: unknown): MemberGenderKey {
+  const v = String(raw ?? '').trim();
+  if (v.startsWith('남')) return 'male';
+  if (v.startsWith('여')) return 'female';
+  return 'unknown';
+}
+
+// D열(나이): 20~60대 구간. 20대 미만·70대 이상·공백·비숫자는 전부 'etc'(기타).
+export function classifyAge(raw: unknown): keyof MemberAgeCounts {
+  const n =
+    typeof raw === 'number' ? raw : parseInt(String(raw ?? '').trim(), 10);
+  if (!Number.isFinite(n)) return 'etc';
+  if (n >= 20 && n <= 29) return 'age20';
+  if (n >= 30 && n <= 39) return 'age30';
+  if (n >= 40 && n <= 49) return 'age40';
+  if (n >= 50 && n <= 59) return 'age50';
+  if (n >= 60 && n <= 69) return 'age60';
+  return 'etc';
+}
+
+function emptyAgeCounts(): MemberAgeCounts {
+  return { age20: 0, age30: 0, age40: 0, age50: 0, age60: 0, etc: 0 };
+}
+
+function emptyAreaStats(): MemberAreaStats {
+  const o: MemberAreaStats = {};
+  for (const label of MEMBER_AREA_LABELS) {
+    o[label] = {
+      male: emptyAgeCounts(),
+      female: emptyAgeCounts(),
+      unknown: emptyAgeCounts(),
+    };
+  }
+  return o;
+}
+
 export function parseMemberStatsExcel(file: File): Promise<MemberStatsData> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -71,15 +135,18 @@ export function parseMemberStatsExcel(file: File): Promise<MemberStatsData> {
         });
         if (rows.length < 2) throw new Error('데이터가 비어 있습니다.');
 
-        // 헤더행에서 "영역"/"지역" 열 인덱스를 찾는다(열 위치 하드코딩 금지).
+        // 헤더행에서 "영역"/"지역"/"성별"/"나이" 열 인덱스를 찾는다(열 위치 하드코딩 금지).
         const header = rows[0].map((c) => String(c ?? '').trim());
         const areaCol = header.indexOf('영역');
         const regionCol = header.indexOf('지역');
         if (areaCol < 0 || regionCol < 0) {
           throw new Error('헤더에서 "영역"/"지역" 열을 찾을 수 없습니다.');
         }
+        const genderCol = header.indexOf('성별');
+        const ageCol = header.indexOf('나이');
 
         const regionPv = emptyRegionPv();
+        const areaStats = emptyAreaStats();
         let totalPv = 0;
 
         for (let i = 1; i < rows.length; i++) {
@@ -90,9 +157,23 @@ export function parseMemberStatsExcel(file: File): Promise<MemberStatsData> {
           if (!area) continue;
           totalPv++;
           regionPv[classifyRegion(row[regionCol])]++;
+
+          // 광고 영역별 성별×연령대 집계 (매핑되는 영역 + 성별/나이 열 존재 시)
+          const label = EXCEL_AREA_TO_LABEL[area];
+          if (label && genderCol >= 0 && ageCol >= 0) {
+            const g = classifyGender(row[genderCol]);
+            const a = classifyAge(row[ageCol]);
+            areaStats[label][g][a]++;
+          }
         }
 
-        resolve({ month: memberDataMonth(file.name), totalPv, regionPv });
+        resolve({
+          month: memberDataMonth(file.name),
+          year: memberDataYear(file.name),
+          totalPv,
+          regionPv,
+          areaStats,
+        });
       } catch (err) {
         reject(err instanceof Error ? err : new Error(String(err)));
       }

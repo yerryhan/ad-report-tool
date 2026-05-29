@@ -133,6 +133,35 @@ export type MemberRegion =
   | "강원"
   | "지역 미기재";
 
+/** 연령대 구간별 카운트(소계 제외). 소계/합계는 표시 시 계산. */
+export type MemberAgeCounts = {
+  age20: number; // 20~29
+  age30: number; // 30~39
+  age40: number; // 40~49
+  age50: number; // 50~59
+  age60: number; // 60~69
+  etc: number; // 20대 미만·70대 이상·공백·비숫자 = 기타
+};
+
+/** 성별(남/여/* 성별 미기재)별 연령대 카운트 */
+export type MemberGenderKey = "male" | "female" | "unknown";
+export type MemberGenderAge = Record<MemberGenderKey, MemberAgeCounts>;
+
+/** 광고 영역(아래 MEMBER_AREA_LABELS) → 성별×연령대 PV 집계 */
+export type MemberAreaStats = Record<string, MemberGenderAge>;
+
+/**
+ * 성별/연령대 표의 광고 영역 행 라벨(순서 고정).
+ * 통계정보(회원) 엑셀 A열(영역) 값 → 이 라벨로 매핑(파서 EXCEL_AREA_TO_LABEL).
+ */
+export const MEMBER_AREA_LABELS = [
+  "메인 페이지",
+  "이벤트 모음 페이지",
+  "검진센터 둘러보기 페이지",
+  "건강검진 예약하기 페이지",
+  "건강검진 예약 정보 조회 페이지",
+] as const;
+
 /**
  * 회원 통계 집계 결과. raw 17만 행을 지역 등으로 집계한 요약만 보관
  * (원본은 sessionStorage 용량 초과라 저장하지 않음).
@@ -140,10 +169,14 @@ export type MemberRegion =
 export type MemberStatsData = {
   /** 파일명에서 계산한 데이터 대상 월 (1~12). 미상이면 0 */
   month: number;
+  /** 데이터 대상 연도 (파일명 연도, 1월 파일이면 전년). 미상이면 0 */
+  year: number;
   /** 전체 노출(행) 수 = 전체 PV */
   totalPv: number;
   /** 지역 그룹별 PV(노출 행 수) */
   regionPv: Record<MemberRegion, number>;
+  /** 광고 영역별 성별×연령대 PV 집계 (성별/연령대 표용) */
+  areaStats: MemberAreaStats;
 };
 
 export type UploadStatus = "success" | "fail" | "pending";
