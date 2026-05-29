@@ -700,11 +700,9 @@ export default function CompanyMarketing() {
         <div className="flex items-center px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             기업체별 마케팅 현황
-            {gadaData && gadaData.month > 0 && (
-              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                {gadaData.month}월 한국(MSD) 가다실
-              </span>
-            )}
+            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+              기업체·병원별 마케팅 현황
+            </span>
           </h1>
         </div>
 

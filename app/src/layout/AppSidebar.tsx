@@ -32,7 +32,6 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "PV/UV 전체 현황", path: "/display/pv-uv" },
       { name: "로그인 회원 PV", path: "/display/member-pv" },
-      { name: "전국 지역별 PV", path: "/display/regional-pv" },
       { name: "연령대 기준 클릭률", path: "/display/age-ctr" },
     ],
   },

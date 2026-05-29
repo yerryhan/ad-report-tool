@@ -19,6 +19,9 @@ export default function HospitalBooking() {
           <div className="flex items-center px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               병원별 예약 현황
+              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                기업체·병원별 마케팅 현황
+              </span>
             </h1>
           </div>
           <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -155,7 +158,7 @@ export default function HospitalBooking() {
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             병원별 예약 현황
             <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-              {month > 0 ? `${month}월 ` : ""}한국(MSD) 가다실
+              기업체·병원별 마케팅 현황
             </span>
           </h1>
         </div>

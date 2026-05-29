@@ -167,7 +167,7 @@ const REGION_LABELS: LabelDef[] = [
   { key: "경상", side: "right", y: 1640, ax: 1539, ay: 1876 }, // 블루
 ];
 const CHIP_W = 900;
-const CHIP_H = 260;
+const CHIP_H = 300; // 상하 패딩을 좌우 패딩의 절반(≈50px)이 되도록 칩 높이 확대
 const LEFT_X = -1020; // 좌측 칩: 오른쪽 모서리 ≈ -120
 const RIGHT_X = 2490; // 우측 칩: 왼쪽 모서리
 
@@ -206,9 +206,9 @@ function KoreaMap({ data }: { data: MemberStatsData | null }) {
           {/* 드롭섀도우: 오른쪽 아래 45°로 떨어지게(왼쪽 위에는 그림자 없음) */}
           <filter id="mapShadow" x="-10%" y="-10%" width="140%" height="140%">
             <feDropShadow
-              dx="80"
-              dy="80"
-              stdDeviation="22"
+              dx="50"
+              dy="50"
+              stdDeviation="16"
               floodColor="#000000"
               floodOpacity="0.2"
             />
@@ -259,7 +259,7 @@ function KoreaMap({ data }: { data: MemberStatsData | null }) {
               {/* 1행: 지역명 (디자인 규칙 유지) */}
               <text
                 x={cx}
-                y={l.y + 95}
+                y={l.y + 110}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontSize={110}
@@ -272,7 +272,7 @@ function KoreaMap({ data }: { data: MemberStatsData | null }) {
               {data && (
                 <text
                   x={cx}
-                  y={l.y + 195}
+                  y={l.y + 210}
                   textAnchor="middle"
                   dominantBaseline="central"
                   fontSize={76}
