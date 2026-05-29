@@ -3,8 +3,9 @@ import { useDropzone } from "react-dropzone";
 import PageMeta from "../../components/common/PageMeta";
 import { isGadaFile, parseGadaExcel } from "../../utils/gadaExcelParser";
 import { isDisplayAdFile, parseDisplayAdExcel } from "../../utils/displayAdExcelParser";
+import { isMemberStatsFile, parseMemberStatsExcel } from "../../utils/memberStatsParser";
 import { useGadaData } from "../../context/GadaDataContext";
-import type { GadaExcelData, DisplayAdData } from "../../types/gada";
+import type { GadaExcelData, DisplayAdData, MemberStatsData } from "../../types/gada";
 
 type ItemStatus = "대기" | "성공" | "실패";
 
@@ -13,9 +14,11 @@ type PendingItem = {
   file: File;
   isGada: boolean;
   isDisplay: boolean;
+  isMember: boolean;
   isParsing: boolean;
   parsed: GadaExcelData | null;
   parsedDisplay: DisplayAdData | null;
+  parsedMember: MemberStatsData | null;
   parseError: string | null;
   status: ItemStatus;
 };
@@ -122,6 +125,57 @@ function DisplayAdParsePreview({ data }: { data: DisplayAdData }) {
   );
 }
 
+// 통계정보(회원) 파싱 결과 미리보기 카드
+function MemberStatsParsePreview({ data }: { data: MemberStatsData }) {
+  const topRegion = (Object.entries(data.regionPv) as [string, number][])
+    .filter(([r]) => r !== "지역 미기재")
+    .sort((a, b) => b[1] - a[1])[0];
+
+  return (
+    <div className="flex flex-col gap-3 w-full">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M10 3L5 9L2 6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+          통계정보(회원) {data.month ? `${data.month}월 ` : ""}파싱 완료
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "전체 PV", value: data.totalPv.toLocaleString("ko-KR") },
+          { label: "최다 지역", value: topRegion ? topRegion[0] : "-" },
+          {
+            label: "최다 지역 PV",
+            value: topRegion ? topRegion[1].toLocaleString("ko-KR") : "-",
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2 text-center"
+          >
+            <p className="text-xs text-gray-500 dark:text-gray-400">{item.label}</p>
+            <p className="mt-0.5 text-base font-bold text-gray-800 dark:text-white">
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        * 지역별 PV·비율·순위가 디스플레이 광고 현황 &gt; 로그인 회원 PV 표에 자동 입력됩니다
+      </p>
+    </div>
+  );
+}
+
 function statusColor(status: ItemStatus): string {
   if (status === "성공") return "text-green-500";
   if (status === "실패") return "text-red-500";
@@ -130,7 +184,8 @@ function statusColor(status: ItemStatus): string {
 
 export default function DataUpload() {
   const [items, setItems] = useState<PendingItem[]>([]);
-  const { setGadaData, setDisplayAdData, addUploadLog } = useGadaData();
+  const { setGadaData, setDisplayAdData, setMemberStatsData, addUploadLog } =
+    useGadaData();
 
   // ── 드롭존: xlsx 허용, 드롭 즉시 인식 가능한 파일은 브라우저 메모리에서 파싱 ──
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -139,14 +194,17 @@ export default function DataUpload() {
     const newItems: PendingItem[] = acceptedFiles.map((file) => {
       const gada = isGadaFile(file.name);
       const display = !gada && isDisplayAdFile(file.name);
+      const member = !gada && !display && isMemberStatsFile(file.name);
       return {
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         file,
         isGada: gada,
         isDisplay: display,
-        isParsing: gada || display,
+        isMember: member,
+        isParsing: gada || display || member,
         parsed: null,
         parsedDisplay: null,
+        parsedMember: null,
         parseError: null,
         status: "대기" as ItemStatus,
       };
@@ -192,6 +250,16 @@ export default function DataUpload() {
             );
           })
           .catch(onParseError(item.id));
+      } else if (item.isMember) {
+        parseMemberStatsExcel(item.file)
+          .then((parsedMember) => {
+            setItems((prev) =>
+              prev.map((it) =>
+                it.id === item.id ? { ...it, parsedMember, isParsing: false } : it
+              )
+            );
+          })
+          .catch(onParseError(item.id));
       }
     }
   }, []);
@@ -203,6 +271,7 @@ export default function DataUpload() {
     let lastGada: GadaExcelData | null = null;
     let lastGadaName: string | null = null;
     let lastDisplay: DisplayAdData | null = null;
+    let lastMember: MemberStatsData | null = null;
     const result = new Map<string, ItemStatus>();
 
     for (const it of pending) {
@@ -225,6 +294,15 @@ export default function DataUpload() {
           addUploadLog(it.file.name, "fail", "admin");
           result.set(it.id, "실패");
         }
+      } else if (it.isMember) {
+        if (it.parsedMember) {
+          lastMember = it.parsedMember;
+          addUploadLog(it.file.name, "success", "admin");
+          result.set(it.id, "성공");
+        } else {
+          addUploadLog(it.file.name, "fail", "admin");
+          result.set(it.id, "실패");
+        }
       } else {
         // 인식 못 한 파일: 현재 파서 미구현 → 업로드 자체는 성공 처리
         addUploadLog(it.file.name, "success", "admin");
@@ -234,6 +312,7 @@ export default function DataUpload() {
 
     if (lastGada) setGadaData(lastGada, lastGadaName);
     if (lastDisplay) setDisplayAdData(lastDisplay);
+    if (lastMember) setMemberStatsData(lastMember);
     setItems((prev) =>
       prev.map((it) => (result.has(it.id) ? { ...it, status: result.get(it.id)! } : it))
     );
@@ -252,7 +331,8 @@ export default function DataUpload() {
 
   // 박스에는 가장 최근 인식 파일(가다실/디스플레이)의 파싱 상태/통계를 표시
   const latestParsable =
-    [...items].reverse().find((it) => it.isGada || it.isDisplay) ?? null;
+    [...items].reverse().find((it) => it.isGada || it.isDisplay || it.isMember) ??
+    null;
   const hasActionable = items.some((it) => it.status === "대기" && !it.isParsing);
 
   return (
@@ -309,6 +389,8 @@ export default function DataUpload() {
                   <GadaParsePreview data={latestParsable.parsed} />
                 ) : latestParsable?.parsedDisplay ? (
                   <DisplayAdParsePreview data={latestParsable.parsedDisplay} />
+                ) : latestParsable?.parsedMember ? (
+                  <MemberStatsParsePreview data={latestParsable.parsedMember} />
                 ) : latestParsable?.parseError ? (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-sm font-medium text-red-500">

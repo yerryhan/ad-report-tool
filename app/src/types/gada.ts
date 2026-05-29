@@ -122,6 +122,30 @@ export type DisplayAdData = {
   additionalMonthly: GenderMonthly[];
 };
 
+// ── 통계정보(회원) 엑셀 (로그인 회원 노출 raw 데이터) ──────────────
+/** 회원 통계 지역 그룹 키 (분류 결과) */
+export type MemberRegion =
+  | "서울"
+  | "경기(인천)"
+  | "충청"
+  | "경상"
+  | "전라"
+  | "강원"
+  | "지역 미기재";
+
+/**
+ * 회원 통계 집계 결과. raw 17만 행을 지역 등으로 집계한 요약만 보관
+ * (원본은 sessionStorage 용량 초과라 저장하지 않음).
+ */
+export type MemberStatsData = {
+  /** 파일명에서 계산한 데이터 대상 월 (1~12). 미상이면 0 */
+  month: number;
+  /** 전체 노출(행) 수 = 전체 PV */
+  totalPv: number;
+  /** 지역 그룹별 PV(노출 행 수) */
+  regionPv: Record<MemberRegion, number>;
+};
+
 export type UploadStatus = "success" | "fail" | "pending";
 
 export type UploadLogEntry = {

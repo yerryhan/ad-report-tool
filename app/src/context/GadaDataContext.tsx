@@ -1,11 +1,12 @@
 import { createContext, useContext, useState } from 'react';
-import type { GadaExcelData, DisplayAdData, UploadLogEntry, UploadStatus } from '../types/gada';
+import type { GadaExcelData, DisplayAdData, MemberStatsData, UploadLogEntry, UploadStatus } from '../types/gada';
 
 // ── sessionStorage 헬퍼 (탭/브라우저 닫으면 자동 소멸) ──────────────
 const SS_KEY_DATA     = 'gada_data';
 const SS_KEY_DATAFILE = 'gada_data_file';
 const SS_KEY_HISTORY  = 'gada_history';
 const SS_KEY_DISPLAY  = 'display_ad_data';
+const SS_KEY_MEMBER   = 'member_stats_data';
 
 function ssGet<T>(key: string): T | null {
   try {
@@ -33,6 +34,10 @@ type GadaDataContextType = {
   /** 디스플레이 광고 현황 데이터 (방문통계 a/b, 월별 남녀 c/d) */
   displayAdData: DisplayAdData | null;
   setDisplayAdData: (data: DisplayAdData | null) => void;
+
+  /** 통계정보(회원) 집계 데이터 (지역별 PV 등) */
+  memberStatsData: MemberStatsData | null;
+  setMemberStatsData: (data: MemberStatsData | null) => void;
 
   uploadHistory: UploadLogEntry[];
   addUploadLog: (
@@ -65,6 +70,10 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
     () => ssGet<DisplayAdData>(SS_KEY_DISPLAY)
   );
 
+  const [memberStatsData, setMemberStatsDataState] = useState<MemberStatsData | null>(
+    () => ssGet<MemberStatsData>(SS_KEY_MEMBER)
+  );
+
   const [uploadHistory, setUploadHistory] = useState<UploadLogEntry[]>(
     () => ssGet<UploadLogEntry[]>(SS_KEY_HISTORY) ?? []
   );
@@ -79,6 +88,11 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const setDisplayAdData = (data: DisplayAdData | null) => {
     setDisplayAdDataState(data);
     ssSet(SS_KEY_DISPLAY, data);
+  };
+
+  const setMemberStatsData = (data: MemberStatsData | null) => {
+    setMemberStatsDataState(data);
+    ssSet(SS_KEY_MEMBER, data);
   };
 
   const addUploadLog = (
@@ -133,6 +147,8 @@ export const GadaDataProvider: React.FC<{ children: React.ReactNode }> = ({
         setGadaData,
         displayAdData,
         setDisplayAdData,
+        memberStatsData,
+        setMemberStatsData,
         uploadHistory,
         addUploadLog,
         removeUploadLogs,
