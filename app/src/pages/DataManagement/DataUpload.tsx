@@ -245,6 +245,7 @@ export default function DataUpload() {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
         ".xlsx",
       ],
+      "application/vnd.ms-excel": [".xls"],
     },
     multiple: true,
   });
@@ -340,7 +341,7 @@ export default function DataUpload() {
                         엑셀 파일 업로드 (드래그 앤 드롭 · 여러 개 가능)
                       </p>
                       <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                        지원 형식: .xlsx
+                        지원 형식: .xlsx, .xls
                       </p>
                     </div>
                   </>
