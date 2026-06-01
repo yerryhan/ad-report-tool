@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type {
   MemberAgeCounts,
   MemberAreaStats,
+  MemberGenderAge,
   MemberGenderKey,
   MemberRegion,
   MemberStatsData,
@@ -147,6 +148,11 @@ export function parseMemberStatsExcel(file: File): Promise<MemberStatsData> {
 
         const regionPv = emptyRegionPv();
         const areaStats = emptyAreaStats();
+        const genderAge: MemberGenderAge = {
+          male: emptyAgeCounts(),
+          female: emptyAgeCounts(),
+          unknown: emptyAgeCounts(),
+        };
         let totalPv = 0;
 
         for (let i = 1; i < rows.length; i++) {
@@ -158,12 +164,14 @@ export function parseMemberStatsExcel(file: File): Promise<MemberStatsData> {
           totalPv++;
           regionPv[classifyRegion(row[regionCol])]++;
 
-          // 광고 영역별 성별×연령대 집계 (매핑되는 영역 + 성별/나이 열 존재 시)
-          const label = EXCEL_AREA_TO_LABEL[area];
-          if (label && genderCol >= 0 && ageCol >= 0) {
+          if (genderCol >= 0 && ageCol >= 0) {
             const g = classifyGender(row[genderCol]);
             const a = classifyAge(row[ageCol]);
-            areaStats[label][g][a]++;
+            // 영역 무관 전체 성별×연령대 집계 (남/여 총 PV·연령대 분포)
+            genderAge[g][a]++;
+            // 광고 영역별 성별×연령대 집계 (매핑되는 영역만)
+            const label = EXCEL_AREA_TO_LABEL[area];
+            if (label) areaStats[label][g][a]++;
           }
         }
 
@@ -173,6 +181,7 @@ export function parseMemberStatsExcel(file: File): Promise<MemberStatsData> {
           totalPv,
           regionPv,
           areaStats,
+          genderAge,
         });
       } catch (err) {
         reject(err instanceof Error ? err : new Error(String(err)));

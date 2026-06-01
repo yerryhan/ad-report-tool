@@ -177,6 +177,8 @@ export type MemberStatsData = {
   regionPv: Record<MemberRegion, number>;
   /** 광고 영역별 성별×연령대 PV 집계 (성별/연령대 표용) */
   areaStats: MemberAreaStats;
+  /** 영역 무관 전체 성별×연령대 PV 집계 (연령대 기준 클릭률 페이지용: 남/여 총 PV·연령대 분포) */
+  genderAge: MemberGenderAge;
 };
 
 export type UploadStatus = "success" | "fail" | "pending";

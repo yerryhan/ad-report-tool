@@ -262,7 +262,7 @@ function KoreaMap({ data }: { data: MemberStatsData | null }) {
                 y={l.y + 110}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={110}
+                fontSize={94}
                 fontWeight={600}
                 fill="#111827"
               >
@@ -275,7 +275,7 @@ function KoreaMap({ data }: { data: MemberStatsData | null }) {
                   y={l.y + 210}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fontSize={76}
+                  fontSize={84}
                   fontWeight={400}
                   fill="#000000"
                 >
@@ -399,7 +399,7 @@ function GenderAgeTable({ data }: { data: MemberStatsData | null }) {
     textAlign: "center",
     verticalAlign: "middle",
     padding: "6px 4px",
-    fontSize: "14px",
+    fontSize: "15.33px",
     lineHeight: 1.3,
     whiteSpace: wrap ? "normal" : "nowrap",
     wordBreak: wrap ? "keep-all" : "normal", // 한글은 어절(공백) 단위로 줄바꿈
@@ -526,7 +526,7 @@ export default function MemberPv() {
         </div>
 
         {/* ── 스크롤 영역: 1920×1080(16:9) 슬라이드를 위→아래로 스크롤 ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto font-nanum">
           {/* 슬라이드 1: 성별/연령대 기준 (본문은 추후 작성) */}
           <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
             {/* 슬라이드 제목 */}

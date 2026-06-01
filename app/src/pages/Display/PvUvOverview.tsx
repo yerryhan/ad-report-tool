@@ -208,7 +208,7 @@ function TemplateTable({
                       textAlign: "center",
                       verticalAlign: "middle",
                       padding: "6px 8px",
-                      fontSize: "14px",
+                      fontSize: "15.33px",
                       lineHeight: 1.3,
                     }}
                   >
@@ -338,7 +338,7 @@ export default function PvUvOverview() {
         </div>
 
         {/* ── 스크롤 영역: 페이지 두 개를 스크롤로 이동 ──────────────── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto font-nanum">
           {/* 페이지 1: 전체 방문통계 (표 a) */}
           <PageSection
             sub="PV/UV 전체 현황(전체 방문통계)"

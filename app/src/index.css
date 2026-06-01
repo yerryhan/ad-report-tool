@@ -5,9 +5,40 @@ layer(base);
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── 나눔스퀘어 (시각화 화면 전용 폰트) ──────────────────────────── */
+@font-face {
+  font-family: "NanumSquare";
+  src: url("/fonts/NanumSquareL.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "NanumSquare";
+  src: url("/fonts/NanumSquareR.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "NanumSquare";
+  src: url("/fonts/NanumSquareB.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "NanumSquare";
+  src: url("/fonts/NanumSquareEB.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-*: initial;
   --font-outfit: Outfit, sans-serif;
+  --font-nanum: "NanumSquare", sans-serif;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -742,6 +773,15 @@ span.flatpickr-weekday,
 .carouselThree .swiper-pagination-bullet-active,
 .carouselFour .swiper-pagination-bullet-active {
   @apply w-6.5 rounded-xl;
+}
+
+/* 연령대 클릭률 도넛 커스텀 툴팁: ApexCharts 기본 컨테이너(테두리/배경/그림자)를
+   제거해 커스텀 말풍선만 보이도록(모서리에 비치는 검정 테두리 제거). 이 페이지 한정. */
+.ctr-donut .apexcharts-tooltip {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
 }
 
 .form-check-input:checked ~ span {

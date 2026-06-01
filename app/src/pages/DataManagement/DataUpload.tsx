@@ -271,7 +271,9 @@ export default function DataUpload() {
     let lastGada: GadaExcelData | null = null;
     let lastGadaName: string | null = null;
     let lastDisplay: DisplayAdData | null = null;
-    let lastMember: MemberStatsData | null = null;
+    let lastDisplayName: string | null = null;
+    // 회원통계는 월별 누적이라 배치 내 모든 파일을 각각 저장
+    const memberSaves: { data: MemberStatsData; filename: string }[] = [];
     const result = new Map<string, ItemStatus>();
 
     for (const it of pending) {
@@ -288,6 +290,7 @@ export default function DataUpload() {
       } else if (it.isDisplay) {
         if (it.parsedDisplay) {
           lastDisplay = it.parsedDisplay;
+          lastDisplayName = it.file.name;
           addUploadLog(it.file.name, "success", "admin");
           result.set(it.id, "성공");
         } else {
@@ -296,7 +299,7 @@ export default function DataUpload() {
         }
       } else if (it.isMember) {
         if (it.parsedMember) {
-          lastMember = it.parsedMember;
+          memberSaves.push({ data: it.parsedMember, filename: it.file.name });
           addUploadLog(it.file.name, "success", "admin");
           result.set(it.id, "성공");
         } else {
@@ -311,8 +314,8 @@ export default function DataUpload() {
     }
 
     if (lastGada) setGadaData(lastGada, lastGadaName);
-    if (lastDisplay) setDisplayAdData(lastDisplay);
-    if (lastMember) setMemberStatsData(lastMember);
+    if (lastDisplay) setDisplayAdData(lastDisplay, lastDisplayName);
+    for (const m of memberSaves) setMemberStatsData(m.data, m.filename);
     setItems((prev) =>
       prev.map((it) => (result.has(it.id) ? { ...it, status: result.get(it.id)! } : it))
     );

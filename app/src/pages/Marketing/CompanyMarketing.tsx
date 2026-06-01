@@ -26,7 +26,7 @@ function makeDonutOpts(
   return {
     chart: {
       type: "donut",
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "NanumSquare, sans-serif",
       animations: { enabled: false },
       background: "transparent",
     },
@@ -55,7 +55,7 @@ function makeBarOptions(yMax: number, mainColor: string, subColor: string): Apex
       type: "bar",
       stacked: true,
       toolbar: { show: false },
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "NanumSquare, sans-serif",
       animations: { enabled: false },
       background: "transparent",
       offsetX: 0,
@@ -91,7 +91,7 @@ function makeBarOptions(yMax: number, mainColor: string, subColor: string): Apex
       position: "top",
       horizontalAlign: "right",
       fontSize: "12px",
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "NanumSquare, sans-serif",
       fontWeight: 400,
       markers: { size: 8 },
     },
@@ -114,7 +114,7 @@ function makeAreaOptions(yMax: number, mainColor: string, subColor: string): Ape
       type: "area",
       toolbar: { show: false },
       zoom: { enabled: false, allowMouseWheelZoom: false },
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "NanumSquare, sans-serif",
       animations: { enabled: false },
       background: "transparent",
     },
@@ -152,7 +152,7 @@ function makeAreaOptions(yMax: number, mainColor: string, subColor: string): Ape
       position: "top",
       horizontalAlign: "right",
       fontSize: "12px",
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "NanumSquare, sans-serif",
       fontWeight: 400,
       markers: { size: 8, strokeWidth: 0, shape: "square" },
     },
@@ -414,7 +414,7 @@ function SectionCharts({
             />
           </div>
           <div className="shrink-0 mt-0">
-            <table className="w-full table-fixed border-collapse text-[9px] leading-none">
+            <table className="w-full table-fixed border-collapse text-[11.67px] leading-none">
               <colgroup>
                 <col style={{ width: "38px", minWidth: "38px", maxWidth: "38px" }} />
                 {Array(13).fill(null).map((_, i) => <col key={i} />)}
@@ -707,7 +707,7 @@ export default function CompanyMarketing() {
         </div>
 
         {/* ── 스크롤 영역 ──────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto font-nanum">
 
           {/* ══ 섹션 1: 통합 통계 (준비 중) ═══════════════════════════════ */}
           <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">

@@ -6,6 +6,16 @@ import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
 
+// ── 페이지 제목 (다른 시각화 페이지와 동일 형식) ──────────────────────
+function PageTitle({ main, sub }: { main: string; sub?: string }) {
+  return (
+    <h2 className="shrink-0 text-gray-900 dark:text-white">
+      <span className="text-base font-bold">{main}</span>
+      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
+    </h2>
+  );
+}
+
 export default function HospitalBooking() {
   const { currentTheme } = useColorTheme();
   const { gadaData } = useGadaData();
@@ -81,7 +91,7 @@ export default function HospitalBooking() {
       chart: {
         type: "bar",
         toolbar: { show: false },
-        fontFamily: "Outfit, sans-serif",
+        fontFamily: "NanumSquare, sans-serif",
         animations: { enabled: true, speed: 400 },
         background: "transparent",
       },
@@ -110,7 +120,7 @@ export default function HospitalBooking() {
         axisTicks: { show: false },
         labels: {
           style: {
-            fontSize: "10px",
+            fontSize: "11.33px",
             colors: Array(categories.length).fill("#9ca3af"),
           },
           rotate: -35,
@@ -164,14 +174,15 @@ export default function HospitalBooking() {
         </div>
 
         {/* 컨텐츠 — 전체 흰색 배경 */}
-        <div className="flex-1 overflow-auto bg-white dark:bg-gray-800 px-6 pt-6">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm px-6 pt-6 pb-0">
+        <div className="flex-1 overflow-auto bg-white dark:bg-gray-800 font-nanum">
+          {/* 페이지 제목 — 다른 페이지와 동일 형식 */}
+          <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+            <PageTitle main="병원별 예약 현황" />
+          </div>
+          <div className="mx-6 mt-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm px-6 pt-6 pb-0">
 
             {/* 요약 배지 */}
             <div className="mb-5 flex items-center gap-3">
-              <span className="text-sm font-semibold text-gray-800 dark:text-white">
-                병원별 예약 현황
-              </span>
               <span
                 className="rounded-full px-3 py-0.5 text-xs font-medium text-white"
                 style={{ backgroundColor: currentTheme.main }}
@@ -227,7 +238,7 @@ export default function HospitalBooking() {
                   <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
                     {otherHospitals.map((h, i) => (
                       <div key={i} className="py-px">
-                        <span className="text-[10px] leading-none text-gray-700 dark:text-gray-300">
+                        <span className="text-[11.33px] leading-none text-gray-700 dark:text-gray-300">
                           {h.hospital}
                         </span>
                       </div>
