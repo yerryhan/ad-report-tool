@@ -166,21 +166,11 @@ function makeAreaOptions(yMax: number, mainColor: string, subColor: string): Ape
   };
 }
 
-// ── 표 페이지(기업체별 마케팅 현황) 스케일 ─────────────────────────────
+// ── 표 페이지(기업체별 마케팅 현황) 기준 크기 ──────────────────────────
 // PV/UV 전체 현황 표(BASE_TABLE_HEIGHT=576)와 동일한 높이가 되도록 같은 기준값 사용.
-const TBL_BASE_VH = 980;
+// 실제 스케일은 FitScaleBox가 16:9 박스 크기를 측정해 산출한다(창 높이 기준 아님).
 const TBL_BASE_W = 1544;
 const TBL_BASE_H = 576;
-function useTableScale(): number {
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const update = () => setScale(Math.min(1, window.innerHeight / TBL_BASE_VH));
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return scale;
-}
 
 // 기업체별 마케팅 현황 표: 3열 × 9행, 열 너비 3:2:9.
 // 1행 헤더(메인컬러 배경·흰색 볼드), 2~9행 내용(흰 배경·검정, 수기 입력 예정).
@@ -223,6 +213,51 @@ function CompanyMarketingTable({ main }: { main: string }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+// ── 고정 비율 콘텐츠를 박스에 맞춰 균일 스케일 ──────────────────────────
+// 부모(16:9 슬라이드)에서 받은 영역을 ResizeObserver로 측정해, baseW×baseH
+// 콘텐츠를 가로/세로 모두 넘치지 않는 최대 배율로 균일 축소(비율 변형 없음).
+// 부모(p-8 등)의 패딩이 그대로 사방 여백으로 남는다. (창 높이가 아닌 실제 박스 기준)
+function FitScaleBox({
+  baseW,
+  baseH,
+  children,
+}: {
+  baseW: number;
+  baseH: number;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const s = Math.min(el.clientWidth / baseW, el.clientHeight / baseH);
+      if (s > 0) setScale(Math.min(1, s));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [baseW, baseH]);
+  return (
+    <div ref={ref} className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+      <div style={{ width: baseW * scale, height: baseH * scale }}>
+        <div
+          style={{
+            width: baseW,
+            height: baseH,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -279,7 +314,9 @@ function makeWeeklyLineOptions(
       borderColor: "#f3f4f6",
       yaxis: { lines: { show: true } },
       xaxis: { lines: { show: false } },
-      padding: { left: 0, right: 8, top: 0, bottom: 0 },
+      // 좌우 padding을 키워 플롯 영역을 안쪽으로 인셋 → 차트 전체 크기는 유지한 채
+      // 꺾은선의 시작/끝점과 X축 라벨이 양옆 가장자리에서 안쪽으로 들어오게 함.
+      padding: { left: 36, right: 36, top: 0, bottom: 0 },
     },
     tooltip: { y: { formatter: (v: number) => `${v}건` } },
   };
@@ -555,7 +592,7 @@ function SectionCharts({
   return (
     <>
       {/* 페이지 제목 + 컨트롤 바 */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+      <div className="shrink-0 flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
         <PageTitle main="기업체별 마케팅 현황" sub={subTitle} />
         <button
           onClick={onOpenModal}
@@ -568,7 +605,7 @@ function SectionCharts({
       <div className="flex-1 flex min-h-0">
 
         {/* 왼쪽 절반: 막대그래프 + 예약자 수 표 */}
-        <div className="w-1/2 flex flex-col px-6 pt-5 pb-4 border-r border-gray-100 dark:border-gray-700 min-h-0">
+        <div className="w-1/2 flex flex-col pr-6 pt-5 border-r border-gray-100 dark:border-gray-700 min-h-0">
           <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
             월별 남성/여성 통계
           </h2>
@@ -618,10 +655,10 @@ function SectionCharts({
         </div>
 
         {/* 오른쪽 절반: 도넛 + 면적 차트 */}
-        <div className="w-1/2 flex flex-col min-h-0">
+        <div className="w-1/2 flex flex-col min-h-0 pl-6">
 
           {/* 상단: 도넛 두 개 */}
-          <div className="flex-1 flex flex-col px-6 pt-5 pb-1 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex-1 flex flex-col pt-5 pb-1 border-b border-gray-100 dark:border-gray-700">
             <h2 className="shrink-0 mb-4 text-sm font-bold text-gray-800 dark:text-white">
               해당월 성별 비율
             </h2>
@@ -644,7 +681,7 @@ function SectionCharts({
           </div>
 
           {/* 하단: 면적 차트 */}
-          <div className="flex-1 flex flex-col px-6 pt-2 pb-4 min-h-0">
+          <div className="flex-1 flex flex-col pt-2 min-h-0">
             <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
               월별 남성/여성 통계 추이
             </h2>
@@ -930,8 +967,6 @@ export default function CompanyMarketing() {
     [selfBar],
   );
 
-  const tableScale = useTableScale();
-
   // ── 렌더 ────────────────────────────────────────────────────────────
   return (
     <>
@@ -952,30 +987,29 @@ export default function CompanyMarketing() {
         <div className="flex-1 overflow-y-auto font-nanum">
 
           {/* ══ 페이지 1: 기업체별 마케팅 현황 (표) ═══════════════════════ */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+            style={{ aspectRatio: "16 / 9" }}
+          >
+            <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="기업체별 마케팅 현황" />
             </div>
-            <div className="flex-1 min-h-0 p-12 flex flex-col items-center">
-              {/* PvUvOverview 표와 동일한 크기로 그린 뒤 균일 스케일 (비율 변형 없음) */}
-              <div style={{ width: TBL_BASE_W * tableScale, height: TBL_BASE_H * tableScale }}>
-                <div
-                  style={{
-                    width: TBL_BASE_W,
-                    height: TBL_BASE_H,
-                    transform: `scale(${tableScale})`,
-                    transformOrigin: "top left",
-                  }}
-                >
-                  <CompanyMarketingTable main={currentTheme.main} />
-                </div>
-              </div>
+            <div className="flex-1 min-h-0 flex flex-col items-center">
+              {/* 16:9 박스에 맞춰 비율 유지 균일 스케일 (프레임 p-8이 사방 여백) */}
+              <FitScaleBox baseW={TBL_BASE_W} baseH={TBL_BASE_H}>
+                <CompanyMarketingTable main={currentTheme.main} />
+              </FitScaleBox>
             </div>
           </div>
 
           {/* ══ 페이지 2: 통합 통계 ═══════════════════════════════════════ */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+            style={{ aspectRatio: "16 / 9" }}
+          >
+            <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="통합 통계" />
             </div>
             {!gadaData ? (
@@ -984,7 +1018,7 @@ export default function CompanyMarketing() {
               <div className="flex-1 flex min-h-0">
 
                 {/* 왼쪽 절반: 기간별 예약 신청통계 꺾은선 */}
-                <div className="w-1/2 flex flex-col px-6 pt-5 pb-4 border-r border-gray-100 dark:border-gray-700 min-h-0">
+                <div className="w-1/2 flex flex-col pr-6 pt-5 border-r border-gray-100 dark:border-gray-700 min-h-0">
                   <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
                     기간별 예약 신청통계
                   </h2>
@@ -1019,8 +1053,8 @@ export default function CompanyMarketing() {
                 </div>
 
                 {/* 오른쪽 절반: 위(검진유형 패키지) / 아래(선택 추가항목) 세로막대 */}
-                <div className="w-1/2 flex flex-col min-h-0">
-                  <div className="flex-1 flex flex-col px-6 pt-5 pb-1 border-b border-gray-100 dark:border-gray-700 min-h-0">
+                <div className="w-1/2 flex flex-col min-h-0 pl-6">
+                  <div className="flex-1 flex flex-col pt-5 pb-1 border-b border-gray-100 dark:border-gray-700 min-h-0">
                     <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
                       검진유형 패키지 월별 추이
                     </h2>
@@ -1034,7 +1068,7 @@ export default function CompanyMarketing() {
                       />
                     </div>
                   </div>
-                  <div className="flex-1 flex flex-col px-6 pt-2 pb-4 min-h-0">
+                  <div className="flex-1 flex flex-col pt-2 min-h-0">
                     <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
                       선택 추가항목 월별 추이
                     </h2>
@@ -1055,10 +1089,18 @@ export default function CompanyMarketing() {
           </div>
 
           {/* ══ 페이지 3: (빈 페이지 — 추후 작업 예정) ════════════════════ */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700" />
+          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+            style={{ aspectRatio: "16 / 9" }}
+          />
 
           {/* ══ 섹션 2: a/b 성별 통계 (패키지) ════════════════════════════ */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
+          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800"
+            style={{ aspectRatio: "16 / 9" }}
+          >
             {!gadaData || !stats ? (
               <EmptyState />
             ) : (
@@ -1083,7 +1125,11 @@ export default function CompanyMarketing() {
           </div>
 
           {/* ══ 섹션 3: c/d 성별 통계 (추가항목) ══════════════════════════ */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+            style={{ aspectRatio: "16 / 9" }}
+          >
             {!gadaData || !stats3 ? (
               <EmptyState />
             ) : (
