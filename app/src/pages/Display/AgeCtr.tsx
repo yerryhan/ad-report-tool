@@ -24,7 +24,7 @@ const AGE_KEYS: (keyof MemberAgeCounts)[] = [
 ];
 const AGE_LABELS = ["20대", "30대", "40대", "50대", "60대", "기타"];
 
-// 고정 그레이 (Tailwind gray-400/200/300)
+// 고정 그레이 (Tailwind gray-400/300/200)
 const GREY_400 = "#9CA3AF";
 const GREY_200 = "#E5E7EB";
 const GREY_300 = "#D1D5DB";
@@ -232,15 +232,30 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
 
   const genderLabel = gender === "male" ? "남성" : "여성";
 
-  // 순서대로: tinted 메인, 메인, 서브, 그레이400, 그레이200, 그레이600
-  const SLICE_COLORS = [
-    tint(currentTheme.main, 0.5),
-    currentTheme.main,
-    currentTheme.sub,
-    GREY_400,
-    GREY_200,
-    GREY_300,
-  ];
+  // 강조색(아이콘·증감율): 남성=메인컬러, 여성=서브컬러
+  const accent = gender === "male" ? currentTheme.main : currentTheme.sub;
+
+  // 연령대 색(20대→기타, 도넛·막대·범례 공통).
+  //  - 남성: tinted 메인 / 메인 / 서브 / 그레이400 / 그레이200 / 그레이300
+  //  - 여성: tinted 서브(70% 밝게) / 서브 / 서브 50% 밝게 / 그레이400 / 그레이200 / 그레이300 (50·60·기타는 남성과 동일)
+  const SLICE_COLORS =
+    gender === "male"
+      ? [
+          tint(currentTheme.main, 0.5),
+          currentTheme.main,
+          currentTheme.sub,
+          GREY_400,
+          GREY_200,
+          GREY_300,
+        ]
+      : [
+          tint(currentTheme.sub, 0.7),
+          currentTheme.sub,
+          tint(currentTheme.sub, 0.4),
+          GREY_400,
+          GREY_200,
+          GREY_300,
+        ];
 
   // 도넛(클릭률)·총PV·막대는 가다실(클릭수)+회원통계(PV) 둘 다 필요
   if (!gadaData || !memberStatsData) {
@@ -339,6 +354,8 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
       background: "transparent",
     },
     colors: SLICE_COLORS,
+    // 막대를 완전 불투명(1)으로 고정: 도넛과 같은 SLICE_COLORS여도 기본 막대 투명도 탓에 더 옅어 보이는 것 방지
+    fill: { opacity: 1 },
     plotOptions: {
       bar: {
         distributed: true,
@@ -421,32 +438,43 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
           {/* 상단 30%: 총 접속자 수 요약 (드롭섀도우 흰 박스) */}
           <div className="flex-[3] min-h-0 px-6 py-5 flex items-center">
             <div
-              className="w-full rounded-xl bg-white dark:bg-gray-900 px-6 py-4 flex items-center gap-3"
+              className="w-full rounded-xl bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between"
               style={{ boxShadow: "0 2px 14px rgba(0,0,0,0.08)" }}
             >
-              <span className="shrink-0" style={{ color: currentTheme.main }}>
+              {/* 아이콘 (남성=메인컬러, 여성=서브컬러) */}
+              <span className="shrink-0" style={{ color: accent }}>
                 <GroupIcon className="w-7 h-7" />
               </span>
+              {/* 라벨 */}
               <span className="shrink-0 text-sm font-bold text-gray-800 dark:text-white">
                 {genderLabel} 총 접속자 수
               </span>
-              <span className="shrink-0 text-sm text-gray-700 dark:text-gray-300">
-                <span className="text-gray-400 dark:text-gray-500">{mm(prevM)}월:</span>{" "}
-                <span className="font-bold tabular-nums">
-                  {prevTotal != null ? fmt(prevTotal) : "—"}
+              {/* 전월 → 당월 (가운데 화살표는 Regular 두께·검정) */}
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-black dark:text-white">{mm(prevM)}월:</span>{" "}
+                  <span className="font-bold tabular-nums">
+                    {prevTotal != null ? fmt(prevTotal) : "—"}
+                  </span>
                 </span>
-              </span>
-              <ArrowRightIcon className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-              <span className="shrink-0 text-sm text-gray-700 dark:text-gray-300">
-                <span className="text-gray-400 dark:text-gray-500">{mm(M)}월:</span>{" "}
-                <span className="font-bold tabular-nums">{fmt(curTotal)}</span>
-              </span>
+                {/* 아이콘 path가 fill="" 라 루트 fill을 직접 지정해야 보임 (svgr이 className으로 fill-current를 덮어씀) */}
+                <ArrowRightIcon className="w-4 h-4 shrink-0" style={{ fill: "#000000" }} />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-black dark:text-white">{mm(M)}월:</span>{" "}
+                  <span className="font-bold tabular-nums">{fmt(curTotal)}</span>
+                </span>
+              </div>
+              {/* 증감율: 위/아래 화살표 + 숫자 + % (남성=메인·여성=서브, 기존보다 1pt 작게) */}
               <span
-                className="ml-auto flex shrink-0 items-center gap-1 text-2xl font-extrabold tabular-nums"
-                style={{ color: growth == null ? "#9ca3af" : up ? "#16a34a" : "#dc2626" }}
+                className="flex shrink-0 items-center gap-1 font-extrabold tabular-nums"
+                style={{ color: growth == null ? "#9ca3af" : accent, fontSize: "17pt" }}
               >
                 {growth != null &&
-                  (up ? <ArrowUpIcon className="w-5 h-5" /> : <ArrowDownIcon className="w-5 h-5" />)}
+                  (up ? (
+                    <ArrowUpIcon className="w-5 h-5" style={{ fill: accent }} />
+                  ) : (
+                    <ArrowDownIcon className="w-5 h-5" style={{ fill: accent }} />
+                  ))}
                 {growth != null ? `${Math.abs(growth)}%` : "—"}
               </span>
             </div>

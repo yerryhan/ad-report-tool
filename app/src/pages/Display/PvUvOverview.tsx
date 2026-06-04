@@ -12,7 +12,7 @@ import type {
 const BASE_VIEWPORT_HEIGHT = 980;
 // 기준 높이(980px)에서의 표 고정 크기(px). 이 크기를 1배로 보고 비율 그대로 축소/확대한다.
 // 너비·높이 모두 함께 스케일되므로 비율 변형이 발생하지 않는다. (필요 시 이 값만 조정)
-const BASE_TABLE_WIDTH = 1404; // 1040 × 1.35 (가로 1.35배)
+const BASE_TABLE_WIDTH = 1544; // 1404 × 1.1 (가로폭 110%로 확대)
 const BASE_TABLE_HEIGHT = 576; // 기존 720의 80% 높이 (가로폭은 유지)
 
 // 뷰포트 높이에 따른 표 스케일을 계산한다.

@@ -315,9 +315,9 @@ function useHeightScale(): number {
   return scale;
 }
 
-// 슬라이드 1(성별/연령대 표)의 기준 크기(px). 가로폭은 PV/UV 표(1404)와 동일,
+// 슬라이드 1(성별/연령대 표)의 기준 크기(px). 가로폭은 PV/UV 표(1544)와 동일(110% 확대),
 // 세로폭은 PV/UV(720)의 80% = 576.
-const TABLE_BASE_W = 1404;
+const TABLE_BASE_W = 1544;
 const TABLE_BASE_H = 576;
 
 // ── 광고 영역별 성별/연령대별 통합 통계 표 ───────────────────────────────
