@@ -166,6 +166,174 @@ function makeAreaOptions(yMax: number, mainColor: string, subColor: string): Ape
   };
 }
 
+// ── 표 페이지(기업체별 마케팅 현황) 스케일 ─────────────────────────────
+// PV/UV 전체 현황 표(BASE_TABLE_HEIGHT=576)와 동일한 높이가 되도록 같은 기준값 사용.
+const TBL_BASE_VH = 980;
+const TBL_BASE_W = 1544;
+const TBL_BASE_H = 576;
+function useTableScale(): number {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const update = () => setScale(Math.min(1, window.innerHeight / TBL_BASE_VH));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return scale;
+}
+
+// 기업체별 마케팅 현황 표: 3열 × 9행, 열 너비 3:2:9.
+// 1행 헤더(메인컬러 배경·흰색 볼드), 2~9행 내용(흰 배경·검정, 수기 입력 예정).
+// 폰트/테두리/패딩은 PvUvOverview 표와 동일하게 맞춤(15.33px).
+const COMPANY_TABLE_HEADERS = ["기업체", "검진 단가", "마케팅 상세 내용"];
+const COMPANY_TABLE_COL_WIDTHS = ["21.43%", "14.29%", "64.28%"]; // 3:2:9
+function CompanyMarketingTable({ main }: { main: string }) {
+  return (
+    <table className="table-fixed border-collapse" style={{ width: "100%", height: "100%" }}>
+      <colgroup>
+        {COMPANY_TABLE_COL_WIDTHS.map((w, i) => (
+          <col key={i} style={{ width: w }} />
+        ))}
+      </colgroup>
+      <tbody>
+        {Array.from({ length: 9 }, (_, r) => (
+          <tr key={r} style={{ height: `${100 / 9}%` }}>
+            {Array.from({ length: 3 }, (_, c) => {
+              const isHeader = r === 0;
+              return (
+                <td
+                  key={c}
+                  style={{
+                    backgroundColor: isHeader ? main : "#FFFFFF",
+                    color: isHeader ? "#FFFFFF" : "#000000",
+                    fontWeight: isHeader ? 700 : 400,
+                    border: "1px solid #D1D5DB",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                    padding: "6px 8px",
+                    fontSize: "15.33px",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {isHeader ? COMPANY_TABLE_HEADERS[c] : ""}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// 주차 라벨 생성 (하드코딩 금지 — M월 기준 1~5주차 자동 생성, pptx 내보내기 시 수정 가능)
+function makeWeekLabels(month: number): string[] {
+  return Array.from({ length: 5 }, (_, i) => `${month}월 ${i + 1}주차`);
+}
+
+// "10의 자리에서 반올림" = 100단위 반올림 (예 234→200, 250→300)
+function roundToHundred(n: number): number {
+  return Math.round(n / 100) * 100;
+}
+
+// ── 통합 통계: 기간별 예약 신청 꺾은선 옵션 ─────────────────────────────
+// 점(마커)은 선 색을 그대로 따름. 범례는 HTML로 별도 표시하므로 비활성.
+function makeWeeklyLineOptions(
+  weeks: string[],
+  yMax: number,
+  mainColor: string,
+  subColor: string,
+): ApexOptions {
+  return {
+    chart: {
+      type: "line",
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      fontFamily: "NanumSquare, sans-serif",
+      animations: { enabled: false },
+      background: "transparent",
+    },
+    colors: [mainColor, subColor],
+    stroke: { curve: "straight", width: 3 },
+    markers: { size: 5, strokeWidth: 0, hover: { sizeOffset: 2 } },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: weeks,
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: { style: { fontSize: "11px", colors: weeks.map(() => "#9ca3af") } },
+    },
+    yaxis: {
+      min: 0,
+      max: yMax,
+      tickAmount: Math.max(1, Math.round(yMax / 10)),
+      labels: {
+        formatter: (v: number) => String(Math.round(v)),
+        style: { fontSize: "10px", colors: ["#9ca3af"] },
+        minWidth: 28,
+        maxWidth: 28,
+      },
+    },
+    legend: { show: false },
+    grid: {
+      borderColor: "#f3f4f6",
+      yaxis: { lines: { show: true } },
+      xaxis: { lines: { show: false } },
+      padding: { left: 0, right: 8, top: 0, bottom: 0 },
+    },
+    tooltip: { y: { formatter: (v: number) => `${v}건` } },
+  };
+}
+
+// ── 통합 통계: 월별 남/녀 세로막대 옵션 (면적그래프를 막대로 표현) ────────
+function makeGroupedBarOptions(yMax: number, mainColor: string, subColor: string): ApexOptions {
+  return {
+    chart: {
+      type: "bar",
+      toolbar: { show: false },
+      fontFamily: "NanumSquare, sans-serif",
+      animations: { enabled: false },
+      background: "transparent",
+    },
+    colors: [mainColor, subColor],
+    plotOptions: { bar: { columnWidth: "70%", borderRadius: 2 } },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: MONTH_LABELS_12,
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: { style: { fontSize: "10px", colors: Array(12).fill("#9ca3af") } },
+    },
+    yaxis: {
+      min: 0,
+      max: yMax,
+      tickAmount: Math.max(1, yMax / 10),
+      labels: {
+        formatter: (v: number) => String(v),
+        style: { fontSize: "10px", colors: ["#9ca3af"] },
+        minWidth: 28,
+        maxWidth: 28,
+      },
+    },
+    legend: {
+      show: true,
+      position: "top",
+      horizontalAlign: "right",
+      fontSize: "12px",
+      fontFamily: "NanumSquare, sans-serif",
+      fontWeight: 400,
+      markers: { size: 8 },
+    },
+    grid: {
+      borderColor: "#f3f4f6",
+      yaxis: { lines: { show: true } },
+      xaxis: { lines: { show: false } },
+      padding: { left: 0, right: 8, top: 0, bottom: 0 },
+    },
+    tooltip: { y: { formatter: (v: number) => `${v}명` } },
+  };
+}
+
 // ── 데이터 없음 공통 표시 ────────────────────────────────────────────────
 function EmptyState() {
   return (
@@ -690,6 +858,80 @@ export default function CompanyMarketing() {
     [stats3],
   );
 
+  // ── 통합 통계 페이지: 기간별 예약 신청 꺾은선 ─────────────────────────
+  // 리포트 대상 월(M) — 가다실 데이터 월 기준(없으면 달력 월). 주차 라벨 생성에 사용.
+  const reportMonth = gadaData?.month ?? new Date().getMonth() + 1;
+  const weekLabels = useMemo(() => makeWeekLabels(reportMonth), [reportMonth]);
+
+  // 검진유형 예약 = 검진유형 패키지(남+여), 본인부담 예약 = 선택 추가항목(남+여).
+  // (가다실 예약 엑셀 genderStats 기준 — 통계정보(회원) 엔 해당 항목이 없음)
+  const examCount = gadaData?.genderStats
+    ? gadaData.genderStats.packageMale + gadaData.genderStats.packageFemale
+    : 0;
+  const selfCount = gadaData?.genderStats
+    ? gadaData.genderStats.additionalMale + gadaData.genderStats.additionalFemale
+    : 0;
+  const legendTotal = examCount + selfCount;
+  // 비율 = 두 항목 합 대비(%). 합이 0이면 0.
+  const examPct = legendTotal > 0 ? parseFloat(((examCount / legendTotal) * 100).toFixed(1)) : 0;
+  const selfPct = legendTotal > 0 ? parseFloat(((selfCount / legendTotal) * 100).toFixed(1)) : 0;
+
+  // 주차별 수치 — 추후 사람이 수기 입력. 임시 기본값: 검진유형 50, 본인부담 20.
+  const [weeklyExam] = useState<number[]>(() => Array(5).fill(50));
+  const [weeklySelf] = useState<number[]>(() => Array(5).fill(20));
+
+  // Y축 최상단 기준선 = 검진유형 예약 건수를 100단위로 반올림.
+  // 단, 주차별 데이터가 그 값을 넘으면 데이터가 잘리지 않도록 데이터 최대(10단위 올림)까지 확장.
+  const lineYMax = useMemo(() => {
+    const dataMax = Math.max(0, ...weeklyExam, ...weeklySelf);
+    return Math.max(10, roundToHundred(examCount), Math.ceil(dataMax / 10) * 10);
+  }, [examCount, weeklyExam, weeklySelf]);
+  const lineOptions = useMemo(
+    () => makeWeeklyLineOptions(weekLabels, lineYMax, currentTheme.main, currentTheme.sub),
+    [weekLabels, lineYMax, currentTheme.main, currentTheme.sub],
+  );
+  const lineSeries = useMemo(
+    () => [
+      { name: "검진유형 예약", data: weeklyExam },
+      { name: "본인부담 예약", data: weeklySelf },
+    ],
+    [weeklyExam, weeklySelf],
+  );
+
+  // ── 통합 통계 페이지: 우측 세로막대 (검진유형 패키지·선택 추가항목 월별 총 인원) ──
+  // 섹션2·3의 면적그래프와 동일 데이터(monthlyData/monthlyData3)를 남+여 합산 총 인원수로 표현.
+  const examBar = useMemo(() => {
+    const total = monthlyData.map((e) => e.male + e.female);
+    const yMax = Math.max(10, Math.ceil(Math.max(...total, 10) / 10) * 10);
+    return { total, yMax };
+  }, [monthlyData]);
+  const selfBar = useMemo(() => {
+    const total = monthlyData3.map((e) => e.male + e.female);
+    const yMax = Math.max(10, Math.ceil(Math.max(...total, 10) / 10) * 10);
+    return { total, yMax };
+  }, [monthlyData3]);
+
+  // 위(검진유형 패키지)=메인컬러 / 아래(선택 추가항목)=서브컬러.
+  // 단일 시리즈라 colors[0]만 사용되므로 self 는 서브컬러를 첫 인자로 전달.
+  const examBarOptions = useMemo(
+    () => makeGroupedBarOptions(examBar.yMax, currentTheme.main, currentTheme.sub),
+    [examBar.yMax, currentTheme.main, currentTheme.sub],
+  );
+  const examBarSeries = useMemo(
+    () => [{ name: "검진유형 패키지", data: examBar.total }],
+    [examBar],
+  );
+  const selfBarOptions = useMemo(
+    () => makeGroupedBarOptions(selfBar.yMax, currentTheme.sub, currentTheme.main),
+    [selfBar.yMax, currentTheme.sub, currentTheme.main],
+  );
+  const selfBarSeries = useMemo(
+    () => [{ name: "선택 추가항목", data: selfBar.total }],
+    [selfBar],
+  );
+
+  const tableScale = useTableScale();
+
   // ── 렌더 ────────────────────────────────────────────────────────────
   return (
     <>
@@ -709,29 +951,111 @@ export default function CompanyMarketing() {
         {/* ── 스크롤 영역 ──────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto font-nanum">
 
-          {/* ══ 섹션 1: 통합 통계 (준비 중) ═══════════════════════════════ */}
+          {/* ══ 페이지 1: 기업체별 마케팅 현황 (표) ═══════════════════════ */}
           <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+              <PageTitle main="기업체별 마케팅 현황" />
+            </div>
+            <div className="flex-1 min-h-0 p-12 flex flex-col items-center">
+              {/* PvUvOverview 표와 동일한 크기로 그린 뒤 균일 스케일 (비율 변형 없음) */}
+              <div style={{ width: TBL_BASE_W * tableScale, height: TBL_BASE_H * tableScale }}>
+                <div
+                  style={{
+                    width: TBL_BASE_W,
+                    height: TBL_BASE_H,
+                    transform: `scale(${tableScale})`,
+                    transformOrigin: "top left",
+                  }}
+                >
+                  <CompanyMarketingTable main={currentTheme.main} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ══ 페이지 2: 통합 통계 ═══════════════════════════════════════ */}
+          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+              <PageTitle main="통합 통계" />
+            </div>
             {!gadaData ? (
               <EmptyState />
             ) : (
-              <>
-                <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-                  <PageTitle main="통합 통계" />
-                </div>
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700">
-                      <svg className="text-gray-300 dark:text-gray-500" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" />
-                      </svg>
+              <div className="flex-1 flex min-h-0">
+
+                {/* 왼쪽 절반: 기간별 예약 신청통계 꺾은선 */}
+                <div className="w-1/2 flex flex-col px-6 pt-5 pb-4 border-r border-gray-100 dark:border-gray-700 min-h-0">
+                  <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
+                    기간별 예약 신청통계
+                  </h2>
+                  <div className="relative flex-1 min-h-0">
+                    {/* 범례: 그래프 우상단 — 기호 없이 볼드 컬러 제목 + 건수/비율(검정) */}
+                    <div className="absolute right-2 top-0 z-10 flex gap-6">
+                      <div className="text-center leading-tight">
+                        <div className="text-xs font-bold" style={{ color: currentTheme.main }}>
+                          검진유형 예약
+                        </div>
+                        <div className="text-[10px]" style={{ color: "#000000" }}>
+                          {examCount.toLocaleString("ko-KR")}건 ({examPct}%)
+                        </div>
+                      </div>
+                      <div className="text-center leading-tight">
+                        <div className="text-xs font-bold" style={{ color: currentTheme.sub }}>
+                          본인부담 예약
+                        </div>
+                        <div className="text-[10px]" style={{ color: "#000000" }}>
+                          {selfCount.toLocaleString("ko-KR")}건 ({selfPct}%)
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">통합 통계</p>
-                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">준비 중입니다</p>
+                    <Chart
+                      key={`integ-line-${reportMonth}-${currentTheme.name}`}
+                      options={lineOptions}
+                      series={lineSeries}
+                      type="line"
+                      height="100%"
+                    />
                   </div>
                 </div>
-              </>
+
+                {/* 오른쪽 절반: 위(검진유형 패키지) / 아래(선택 추가항목) 세로막대 */}
+                <div className="w-1/2 flex flex-col min-h-0">
+                  <div className="flex-1 flex flex-col px-6 pt-5 pb-1 border-b border-gray-100 dark:border-gray-700 min-h-0">
+                    <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
+                      검진유형 패키지 월별 추이
+                    </h2>
+                    <div className="flex-1 min-h-0">
+                      <Chart
+                        key={`integ-bar-exam-${gadaData.month}-${currentTheme.name}`}
+                        options={examBarOptions}
+                        series={examBarSeries}
+                        type="bar"
+                        height="100%"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1 flex flex-col px-6 pt-2 pb-4 min-h-0">
+                    <h2 className="shrink-0 mb-1 text-sm font-bold text-gray-800 dark:text-white">
+                      선택 추가항목 월별 추이
+                    </h2>
+                    <div className="flex-1 min-h-0">
+                      <Chart
+                        key={`integ-bar-self-${gadaData.month}-${currentTheme.name}`}
+                        options={selfBarOptions}
+                        series={selfBarSeries}
+                        type="bar"
+                        height="100%"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             )}
           </div>
+
+          {/* ══ 페이지 3: (빈 페이지 — 추후 작업 예정) ════════════════════ */}
+          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700" />
 
           {/* ══ 섹션 2: a/b 성별 통계 (패키지) ════════════════════════════ */}
           <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
