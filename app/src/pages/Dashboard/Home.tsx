@@ -1,4 +1,11 @@
 import PageMeta from "../../components/common/PageMeta";
+import {
+  SlideScaler,
+  CoverSlide,
+  SectionSlide,
+  EndSlide,
+  SECTION_SLIDES,
+} from "../../components/cover/ReportCovers";
 
 const formattedDate = (() => {
   const now = new Date();
@@ -34,35 +41,26 @@ export default function Home() {
           </button>
         </div>
 
-        {/* PDF Preview Area */}
+        {/* PDF Preview Area — 표지 / 장표지 3장 / 종표지 */}
         <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-800">
           <div className="flex flex-col items-center py-8 px-4 gap-6">
 
-            {[1, 2, 3].map((page) => (
-              <div
-                key={page}
-                className="w-full bg-white dark:bg-gray-900 shadow-md rounded"
-                style={{ aspectRatio: "16 / 9" }}
-              >
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <svg
-                      className="mx-auto mb-3 text-gray-200 dark:text-gray-700"
-                      width="48"
-                      height="48"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M7 18H17V16H7V18ZM7 14H17V12H7V14ZM5 22C4.45 22 3.979 21.804 3.587 21.412C3.195 21.02 2.99933 20.5493 3 20V4C3 3.45 3.196 2.979 3.588 2.587C3.98 2.195 4.45067 1.99933 5 2H15L21 8V20C21 20.55 20.804 21.021 20.412 21.413C20.02 21.805 19.5493 22.0007 19 22H5ZM14 9V4H5V20H19V9H14Z" />
-                    </svg>
-                    <p className="text-sm text-gray-400 dark:text-gray-600">
-                      {formattedDate} 광고 리포트 · {page}페이지
-                    </p>
-                  </div>
-                </div>
-              </div>
+            {/* 표지 */}
+            <SlideScaler>
+              <CoverSlide />
+            </SlideScaler>
+
+            {/* 장표지 3장 */}
+            {SECTION_SLIDES.map((s) => (
+              <SlideScaler key={s.num}>
+                <SectionSlide num={s.num} title={s.title} />
+              </SlideScaler>
             ))}
+
+            {/* 종표지 */}
+            <SlideScaler>
+              <EndSlide />
+            </SlideScaler>
           </div>
         </div>
       </div>

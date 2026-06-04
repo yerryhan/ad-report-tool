@@ -10,7 +10,7 @@ export type ColorTheme = {
 
 export const colorThemes: ColorTheme[] = [
   { name: "기본", main: "#465fff", sub: "#9cb9ff", bg: "#ffffff", font: "#101828" },
-  { name: "한국MSD", main: "#3B9189", sub: "#7DCAC3", bg: "#ECECEC", font: "#000000" },
+  { name: "한국MSD", main: "#009484", sub: "#7DCAC3", bg: "#ECECEC", font: "#000000" },
 ];
 
 type ColorThemeContextType = {

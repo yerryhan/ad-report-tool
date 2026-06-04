@@ -5,16 +5,7 @@ import { Link } from "react-router";
 import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
-
-// ── 페이지 제목 (다른 시각화 페이지와 동일 형식) ──────────────────────
-function PageTitle({ main, sub }: { main: string; sub?: string }) {
-  return (
-    <h2 className="shrink-0 text-gray-900 dark:text-white">
-      <span className="text-base font-bold">{main}</span>
-      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
-    </h2>
-  );
-}
+import { PageTitle } from "../../components/report/SlideKit";
 
 export default function HospitalBooking() {
   const { currentTheme } = useColorTheme();

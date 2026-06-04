@@ -9,6 +9,7 @@ import CompanyMarketing from "./pages/Marketing/CompanyMarketing";
 import PvUvOverview from "./pages/Display/PvUvOverview";
 import MemberPv from "./pages/Display/MemberPv";
 import AgeCtr from "./pages/Display/AgeCtr";
+import GeneticContent from "./pages/Genetic/GeneticContent";
 import { ColorThemeProvider } from "./context/ColorThemeContext";
 import { GadaDataProvider } from "./context/GadaDataContext";
 
@@ -28,6 +29,7 @@ export default function App() {
               <Route path="/display/pv-uv"      element={<PvUvOverview />} />
               <Route path="/display/member-pv"  element={<MemberPv />} />
               <Route path="/display/age-ctr"    element={<AgeCtr />} />
+              <Route path="/genetic/content"    element={<GeneticContent />} />
             </Route>
           </Routes>
         </Router>

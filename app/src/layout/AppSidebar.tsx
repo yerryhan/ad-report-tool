@@ -6,6 +6,8 @@ import { useSidebar } from "../context/SidebarContext";
 type NavItem = {
   name: string;
   icon: React.ReactNode;
+  /** 하위 항목이 없는 단일 메뉴의 이동 경로 */
+  path?: string;
   subItems?: { name: string; path: string }[];
 };
 
@@ -38,7 +40,7 @@ const navItems: NavItem[] = [
   {
     icon: <DocsIcon />,
     name: "유전자 검사 콘텐츠 현황",
-    subItems: [],
+    path: "/genetic/content",
   },
 ];
 
@@ -89,42 +91,53 @@ const AppSidebar: React.FC = () => {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto no-scrollbar">
         <ul className="flex flex-col gap-1">
-          {navItems.map((item, index) => (
-            <li key={item.name}>
-              <button
-                onClick={() => toggleMenu(index)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors
+          {navItems.map((item, index) => {
+            const hasSub = !!item.subItems && item.subItems.length > 0;
+            const itemClass = `w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors
                   text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800
-                  ${!isVisible ? "lg:justify-center" : ""}`}
-              >
-                <span className="shrink-0 w-5 h-5 text-gray-500 dark:text-gray-400">
-                  {item.icon}
-                </span>
-
-                {isVisible && (
-                  <>
-                    <span className="flex-1 text-sm font-medium leading-snug text-left">
-                      {item.name}
-                    </span>
-                    {item.subItems && item.subItems.length > 0 && (
+                  ${!isVisible ? "lg:justify-center" : ""}`;
+            return (
+            <li key={item.name}>
+              {hasSub ? (
+                <button onClick={() => toggleMenu(index)} className={itemClass}>
+                  <span className="shrink-0 w-5 h-5 text-gray-500 dark:text-gray-400">
+                    {item.icon}
+                  </span>
+                  {isVisible && (
+                    <>
+                      <span className="flex-1 text-sm font-medium leading-snug text-left">
+                        {item.name}
+                      </span>
                       <ChevronDownIcon
                         className={`shrink-0 w-4 h-4 text-gray-400 transition-transform duration-200 ${
                           openIndex === index ? "rotate-180" : ""
                         }`}
                       />
-                    )}
-                  </>
-                )}
-              </button>
+                    </>
+                  )}
+                </button>
+              ) : (
+                /* 하위 항목이 없는 단일 메뉴 — 클릭 시 바로 해당 페이지로 이동 */
+                <Link to={item.path ?? "#"} className={itemClass}>
+                  <span className="shrink-0 w-5 h-5 text-gray-500 dark:text-gray-400">
+                    {item.icon}
+                  </span>
+                  {isVisible && (
+                    <span className="flex-1 text-sm font-medium leading-snug text-left">
+                      {item.name}
+                    </span>
+                  )}
+                </Link>
+              )}
 
-              {/* Sub-items placeholder (collapsed by default, ready for future items) */}
-              {isVisible && item.subItems && item.subItems.length > 0 && (
+              {/* 하위 항목 목록 (기본 접힘) */}
+              {isVisible && hasSub && (
                 <ul
                   className={`overflow-hidden transition-all duration-200 ml-8 mt-1 space-y-1 ${
                     openIndex === index ? "max-h-96" : "max-h-0"
                   }`}
                 >
-                  {item.subItems.map((sub) => (
+                  {item.subItems?.map((sub) => (
                     <li key={sub.name}>
                       <Link
                         to={sub.path}
@@ -137,7 +150,8 @@ const AppSidebar: React.FC = () => {
                 </ul>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       </nav>
     </aside>

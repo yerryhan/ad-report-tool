@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
 import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
+import { PageTitle, FitScaleBox } from "../../components/report/SlideKit";
 import type {
   MemberAgeCounts,
   MemberGenderKey,
@@ -16,17 +16,6 @@ const GREY_100 = "#F3F4F6"; // 2~8행 1열
 const GREY_200 = "#E5E7EB"; // 9행
 const WHITE = "#FFFFFF";
 const BORDER = "#D1D5DB";
-
-// ── 페이지 제목 (CompanyMarketing / PvUvOverview 와 동일 폰트 규격) ──────
-// main: text-base font-bold, sub: text-sm font-bold
-function PageTitle({ main, sub }: { main: string; sub?: string }) {
-  return (
-    <h2 className="shrink-0 text-gray-900 dark:text-white">
-      <span className="text-base font-bold">{main}</span>
-      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
-    </h2>
-  );
-}
 
 // 표 1열(2~8행) 지역 행: 표시 라벨 ↔ 집계 키. 순서는 사용자 지정.
 const REGION_ROWS: { label: string; key: MemberRegion }[] = [
@@ -290,35 +279,19 @@ function KoreaMap({ data }: { data: MemberStatsData | null }) {
   );
 }
 
-// ── 반응형 스케일 (PvUvOverview 와 동일 규약) ────────────────────────────
-// 표+지도 묶음을 본래 크기로 그린 뒤 균일 배율로 스케일한다(표:지도 비율 고정).
-// PV/UV 전체 현황 표(폭 1404)와 같은 영역을 채우도록 기준 배율 FILL_SCALE 사용.
-const BASE_VIEWPORT_HEIGHT = 980; // 이 높이 이상이면 더 커지지 않음
+// ── 슬라이드2(표+지도) 합성 블록 기준 크기 ──────────────────────────────
+// 표+지도 묶음을 본래 크기로 그린 뒤 FitScaleBox가 16:9 박스에 맞춰 균일 확대/축소.
 const TABLE_BLOCK_W = 480; // 왼쪽 표 폭
 const GAP = 32; // 표↔지도 간격 (gap-8)
 const MAP_BASE_W = 620; // 지도 폭 (현재 비율 유지 기준)
 const MAP_ASPECT = 4630 / 3729; // KoreaMap viewBox 비율 (w/h)
 const COMPOSITE_W = TABLE_BLOCK_W + GAP + MAP_BASE_W; // 1132
 const COMPOSITE_H = MAP_BASE_W / MAP_ASPECT; // ≈ 499 (지도 높이가 가장 큼)
-const FILL_SCALE = 1404 / COMPOSITE_W; // PV/UV 표 폭(1404)에 맞춤 ≈ 1.24
 
-// 뷰포트 높이에 따른 배율(PvUvOverview 규약): 높이 < 980 → 비례 축소, ≥ 980 → 1.
-function useHeightScale(): number {
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const update = () =>
-      setScale(Math.min(1, window.innerHeight / BASE_VIEWPORT_HEIGHT));
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return scale;
-}
-
-// 슬라이드 1(성별/연령대 표)의 기준 크기(px). 가로폭은 PV/UV 표(1544)와 동일(110% 확대),
-// 세로폭은 PV/UV(720)의 80% = 576.
+// 슬라이드 1(성별/연령대 표)의 기준 크기(px). 가로폭은 PV/UV 표와 동일(1544),
+// 세로폭 576. 하단 주석을 포함한 콘텐츠 블록 높이는 636.
 const TABLE_BASE_W = 1544;
-const TABLE_BASE_H = 576;
+const TABLE_CONTENT_H = 636;
 
 // ── 광고 영역별 성별/연령대별 통합 통계 표 ───────────────────────────────
 // 3단 복합 헤더(광고영역 / 기간 / 합계) × 성별(남/여/미기재) × 연령대(20~60대·기타·소계).
@@ -505,8 +478,6 @@ function GenderAgeTable({ data }: { data: MemberStatsData | null }) {
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────────
 export default function MemberPv() {
   const { memberStatsData } = useGadaData();
-  const heightScale = useHeightScale();
-  const mapScale = FILL_SCALE * heightScale; // 지도 묶음: 채움 배율 × 높이 배율
 
   return (
     <>
@@ -527,89 +498,62 @@ export default function MemberPv() {
 
         {/* ── 스크롤 영역: 1920×1080(16:9) 슬라이드를 위→아래로 스크롤 ── */}
         <div className="flex-1 overflow-y-auto font-nanum">
-          {/* 슬라이드 1: 성별/연령대 기준 (본문은 추후 작성) */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            {/* 슬라이드 제목 */}
-            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+          {/* 슬라이드 1: 성별/연령대 기준 — 16:9 + 사방 32px(p-8) */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+            style={{ aspectRatio: "16 / 9" }}
+          >
+            <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="로그인 회원 성별/연령대 기준" sub="PV 현황" />
             </div>
-            {/* 본문: 광고 영역별 성별/연령대별 통합 통계 표.
-                PV/UV 전체 현황과 동일한 여백(p-12)·스케일 규약. */}
-            <div className="flex-1 min-h-0 p-12 flex flex-col items-center justify-center">
-              {/* 스케일된 크기만큼만 자리를 차지하는 래퍼 */}
-              <div
-                style={{ width: TABLE_BASE_W * heightScale, height: TABLE_BASE_H * heightScale }}
-              >
-                <div
-                  style={{
-                    width: TABLE_BASE_W,
-                    height: TABLE_BASE_H,
-                    transform: `scale(${heightScale})`,
-                    transformOrigin: "top left",
-                  }}
-                >
+            {/* 표 + 하단 주석을 한 덩어리로 16:9 박스에 맞춰 균일 스케일 */}
+            <FitScaleBox baseW={TABLE_BASE_W} baseH={TABLE_CONTENT_H}>
+              <div className="w-full h-full flex flex-col">
+                <div className="flex-1 min-h-0">
                   <GenderAgeTable data={memberStatsData} />
                 </div>
-              </div>
-              {/* 표 하단 주석 (두 번째 페이지 주석과 동일 디자인) */}
-              <div
-                className="shrink-0 mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
-                style={{ width: TABLE_BASE_W * heightScale }}
-              >
-                <p>
-                  * 기타 / 성별 미 기재 : 기업체 정책으로 인해 성별 정보 또는 연령
-                  정보를 제공하지 않는 경우
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 슬라이드 2: 전국 지역별 기준 (표 + 대한민국 지도) */}
-          <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
-            {/* 슬라이드 제목 */}
-            <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-              <PageTitle main="로그인 회원 전국 지역별 기준" sub="PV 현황" />
-            </div>
-
-            {/* 본문: 왼쪽 지역별 표 + 오른쪽 대한민국 지도.
-                PV/UV 전체 현황과 동일한 여백(p-12) 안에서, 표:지도 비율을 고정한 채
-                뷰포트 높이에 따라 균일 스케일(반응형). */}
-            <div className="flex-1 min-h-0 p-12 flex items-center justify-center">
-              {/* 스케일된 크기만큼만 자리를 차지하는 래퍼 */}
-              <div
-                style={{ width: COMPOSITE_W * mapScale, height: COMPOSITE_H * mapScale }}
-              >
-                {/* 본래 크기로 그린 뒤 균일 비율로 스케일 → 비율 변형 없음 */}
-                <div
-                  className="flex items-center"
-                  style={{
-                    width: COMPOSITE_W,
-                    height: COMPOSITE_H,
-                    columnGap: GAP,
-                    transform: `scale(${mapScale})`,
-                    transformOrigin: "top left",
-                  }}
-                >
-                  <div className="shrink-0 flex flex-col" style={{ width: TABLE_BLOCK_W }}>
-                    <RegionTable data={memberStatsData} />
-                    <div
-                      className="mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
-                      style={{ width: TABLE_BLOCK_W }}
-                    >
-                      {TABLE_NOTES.map((line, i) => (
-                        <p key={i}>{line}</p>
-                      ))}
-                    </div>
-                  </div>
-                  <div
-                    className="shrink-0"
-                    style={{ width: MAP_BASE_W, aspectRatio: "4630 / 3729" }}
-                  >
-                    <KoreaMap data={memberStatsData} />
-                  </div>
+                {/* 주석 폰트 15px: 이 표 블록은 폭 1544 기준 축소, 2번째 페이지
+                    주석(폭 1132 기준)과 화면상 같은 크기로 보이려면 11×(1544/1132)≈15px. */}
+                <div className="shrink-0 mt-3 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
+                  <p>
+                    * 기타 / 성별 미 기재 : 기업체 정책으로 인해 성별 정보 또는 연령
+                    정보를 제공하지 않는 경우
+                  </p>
                 </div>
               </div>
+            </FitScaleBox>
+          </div>
+
+          {/* 슬라이드 2: 전국 지역별 기준 (표 + 지도) — 16:9 + 사방 32px(p-8) */}
+          <div
+            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+            style={{ aspectRatio: "16 / 9" }}
+          >
+            <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
+              <PageTitle main="로그인 회원 전국 지역별 기준" sub="PV 현황" />
             </div>
+            {/* 표:지도 비율을 고정한 합성 블록을 16:9 박스에 맞춰 채움(fill) */}
+            <FitScaleBox baseW={COMPOSITE_W} baseH={COMPOSITE_H} fill>
+              <div className="w-full h-full flex items-center" style={{ columnGap: GAP }}>
+                <div className="shrink-0 flex flex-col" style={{ width: TABLE_BLOCK_W }}>
+                  <RegionTable data={memberStatsData} />
+                  <div
+                    className="mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
+                    style={{ width: TABLE_BLOCK_W }}
+                  >
+                    {TABLE_NOTES.map((line, i) => (
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+                <div
+                  className="shrink-0"
+                  style={{ width: MAP_BASE_W, aspectRatio: "4630 / 3729" }}
+                >
+                  <KoreaMap data={memberStatsData} />
+                </div>
+              </div>
+            </FitScaleBox>
           </div>
         </div>
       </div>

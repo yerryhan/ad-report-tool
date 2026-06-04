@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
-import { Link } from "react-router";
 import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
+import { PageTitle, EmptyState } from "../../components/report/SlideKit";
 import type { MemberAgeCounts } from "../../types/gada";
 import {
   GroupIcon,
@@ -52,41 +52,6 @@ function contrastText(hex: string): string {
 
 const sumAge = (g: MemberAgeCounts) => AGE_KEYS.reduce((s, k) => s + g[k], 0);
 const fmt = (n: number) => n.toLocaleString("ko-KR");
-
-// ── 페이지 제목 (다른 시각화 페이지와 동일 형식) ──────────────────────
-function PageTitle({ main, sub }: { main: string; sub?: string }) {
-  return (
-    <h2 className="shrink-0 text-gray-900 dark:text-white">
-      <span className="text-base font-bold">{main}</span>
-      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
-    </h2>
-  );
-}
-
-// ── 데이터 없음 공통 표시 ────────────────────────────────────────────────
-function EmptyState() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
-          <svg className="text-gray-400 dark:text-gray-500" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
-          </svg>
-        </div>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">필요한 데이터가 없습니다</p>
-        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-          가다실 통계와 통계정보(회원) 파일을 업로드해주세요
-        </p>
-        <Link
-          to="/data/upload"
-          className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-4 text-xs font-medium text-white hover:bg-brand-600 transition-colors"
-        >
-          데이터 업로드로 이동
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 // ── 반응형 도넛: 컨테이너에 맞춰 정사각형으로 ────────────────────────────
 function ResponsiveDonut({
@@ -261,16 +226,20 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
   if (!gadaData || !memberStatsData) {
     return (
       <div
-        className={`min-h-full flex flex-col bg-white dark:bg-gray-800 ${
+        className={`w-full flex flex-col p-8 bg-white dark:bg-gray-800 ${
           border === "b"
             ? "border-b border-gray-200 dark:border-gray-700"
             : "border-t border-gray-200 dark:border-gray-700"
         }`}
+        style={{ aspectRatio: "16 / 9" }}
       >
-        <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+        <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
           <PageTitle main="로그인 회원 연령대 기준" sub={`광고 클릭률 현황(${genderLabel})`} />
         </div>
-        <EmptyState />
+        <EmptyState
+          title="필요한 데이터가 없습니다"
+          desc="가다실 통계와 통계정보(회원) 파일을 업로드해주세요"
+        />
       </div>
     );
   }
@@ -392,22 +361,24 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
 
   return (
     <div
-      className={`min-h-full flex flex-col bg-white dark:bg-gray-800 ${
+      className={`w-full flex flex-col p-8 bg-white dark:bg-gray-800 ${
         border === "b"
           ? "border-b border-gray-200 dark:border-gray-700"
           : "border-t border-gray-200 dark:border-gray-700"
       }`}
+      style={{ aspectRatio: "16 / 9" }}
     >
       {/* 슬라이드 제목 */}
-      <div className="shrink-0 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+      <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
         <PageTitle main="로그인 회원 연령대 기준" sub={`광고 클릭률 현황(${genderLabel})`} />
       </div>
 
-      {/* 본문: 왼쪽 도넛 / 오른쪽(상단 30% 요약, 하단 70% 막대) */}
+      {/* 본문: 왼쪽 도넛 / 오른쪽(상단 30% 요약, 하단 70% 막대).
+          프레임 p-8(32px)이 사방 여백 → 안쪽 컬럼은 가운데 거터(pr-6/pl-6)만 둔다. */}
       <div className="flex-1 flex min-h-0">
 
         {/* ── 왼쪽: 연령대별 클릭률 도넛 ─────────────────────────────── */}
-        <div className="w-[40%] min-h-0 flex flex-col px-6 py-5 border-r border-gray-100 dark:border-gray-700">
+        <div className="w-[40%] min-h-0 flex flex-col pr-6 pt-5 border-r border-gray-100 dark:border-gray-700">
           <h2 className="shrink-0 text-sm font-bold text-gray-800 dark:text-white">
             연령대별 클릭률
           </h2>
@@ -432,11 +403,11 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
           </div>
         </div>
 
-        {/* ── 오른쪽 ──────────────────────────────────────────────────── */}
-        <div className="w-[60%] min-h-0 flex flex-col">
+        {/* ── 오른쪽 (가운데 거터 pl-6) ──────────────────────────────── */}
+        <div className="w-[60%] min-h-0 flex flex-col pl-6">
 
           {/* 상단 30%: 총 접속자 수 요약 (드롭섀도우 흰 박스) */}
-          <div className="flex-[3] min-h-0 px-6 py-5 flex items-center">
+          <div className="flex-[3] min-h-0 pt-5 flex items-center">
             <div
               className="w-full rounded-xl bg-white dark:bg-gray-900 px-6 py-4 flex items-center justify-between"
               style={{ boxShadow: "0 2px 14px rgba(0,0,0,0.08)" }}
@@ -481,7 +452,7 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
           </div>
 
           {/* 하단 70%: 연령별 접속자 수 막대그래프 */}
-          <div className="flex-[7] min-h-0 flex flex-col px-6 pb-5">
+          <div className="flex-[7] min-h-0 flex flex-col pt-2">
             <h2 className="shrink-0 text-sm font-bold text-gray-800 dark:text-white">
               연령별 접속자 수
             </h2>

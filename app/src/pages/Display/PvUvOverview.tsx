@@ -1,46 +1,19 @@
-import { useEffect, useState } from "react";
 import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
+import { PageTitle, FitScaleBox } from "../../components/report/SlideKit";
 import type {
   DisplayAdData,
   VisitPlacementRow,
   VisitStatsTable,
 } from "../../types/gada";
 
-// 표 크기를 고정하는 기준 뷰포트 높이(px). 창 높이가 이 값 이상이면 표는 더 커지지 않음.
-const BASE_VIEWPORT_HEIGHT = 980;
-// 기준 높이(980px)에서의 표 고정 크기(px). 이 크기를 1배로 보고 비율 그대로 축소/확대한다.
-// 너비·높이 모두 함께 스케일되므로 비율 변형이 발생하지 않는다. (필요 시 이 값만 조정)
-const BASE_TABLE_WIDTH = 1544; // 1404 × 1.1 (가로폭 110%로 확대)
-const BASE_TABLE_HEIGHT = 576; // 기존 720의 80% 높이 (가로폭은 유지)
-
-// 뷰포트 높이에 따른 표 스케일을 계산한다.
-// - 높이 < 980px : 높이에 비례해 균일 축소(반응형)
-// - 높이 ≥ 980px : 1배로 고정(더 커지지 않음)
-function useTableScale(): number {
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const update = () =>
-      setScale(Math.min(1, window.innerHeight / BASE_VIEWPORT_HEIGHT));
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return scale;
-}
-
-// ── 페이지 제목 ─────────────────────────────────────────────────────────
-// CompanyMarketing 의 PageTitle 과 동일한 폰트 스타일.
-// 앞부분(dash 앞)은 text-base font-bold, dash 뒷부분은 text-sm font-bold.
-function PageTitle({ main, sub }: { main: string; sub?: string }) {
-  return (
-    <h2 className="shrink-0 text-gray-900 dark:text-white">
-      <span className="text-base font-bold">{main}</span>
-      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
-    </h2>
-  );
-}
+// 표 기준 크기(px) — FitScaleBox가 16:9 박스 크기를 측정해 비율 그대로 축소.
+// 가로폭은 1404 × 1.1(110% 확대), 세로는 기존 720의 80%.
+const BASE_TABLE_WIDTH = 1544;
+const BASE_TABLE_HEIGHT = 576;
+// 표 + 하단 주석을 함께 스케일하기 위한 콘텐츠 블록 높이(표 + 주석/여백 ≈ 60).
+const CONTENT_BLOCK_HEIGHT = BASE_TABLE_HEIGHT + 60;
 
 // ── 10열 × 8행 템플릿 표 ─────────────────────────────────────────────────
 // 셀 번호 n = (행-1)*10 + 열 (행 우선, 1~80). 번호는 표시하지 않음.
@@ -244,7 +217,7 @@ function monthLabels(m: number): [string, string, string] {
   return [lbl(m - 2), lbl(m - 1), lbl(m)];
 }
 
-// ── 한 페이지(화면) 섹션 ────────────────────────────────────────────────
+// ── 한 페이지(슬라이드): 1920×1080(16:9) 고정 + 사방 32px(p-8) 여백 ──────
 function PageSection({
   sub,
   main,
@@ -252,7 +225,6 @@ function PageSection({
   monthNums,
   data,
   border,
-  scale,
 }: {
   sub: string;
   main: string;
@@ -260,52 +232,35 @@ function PageSection({
   monthNums: [number, number, number];
   data: VisitStatsTable | null;
   border: "b" | "t";
-  scale: number;
 }) {
-  // 스케일 적용 후 실제로 차지하는 크기(레이아웃 점유 크기).
-  const scaledWidth = BASE_TABLE_WIDTH * scale;
-  const scaledHeight = BASE_TABLE_HEIGHT * scale;
-
   return (
     <div
-      className={`min-h-full flex flex-col bg-white dark:bg-gray-800 ${
+      className={`w-full flex flex-col p-8 bg-white dark:bg-gray-800 ${
         border === "b"
           ? "border-b border-gray-200 dark:border-gray-700"
           : "border-t border-gray-200 dark:border-gray-700"
       }`}
+      style={{ aspectRatio: "16 / 9" }}
     >
-      <div className="shrink-0 flex items-center px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+      <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
         <PageTitle main="디스플레이 광고 현황" sub={sub} />
       </div>
-      <div className="flex-1 min-h-0 p-12 flex flex-col items-center">
-        {/* 스케일된 크기만큼만 자리를 차지하는 래퍼 */}
-        <div style={{ width: scaledWidth, height: scaledHeight }}>
-          {/* 기준(980px) 크기로 그린 뒤 균일 비율로 스케일 → 비율 변형 없음 */}
-          <div
-            style={{
-              width: BASE_TABLE_WIDTH,
-              height: BASE_TABLE_HEIGHT,
-              transform: `scale(${scale})`,
-              transformOrigin: "top left",
-            }}
-          >
-            <TemplateTable
-              main={main}
-              months={months}
-              monthNums={monthNums}
-              data={data}
-            />
+      {/* 표 + 하단 주석을 한 덩어리로 16:9 박스에 맞춰 균일 스케일 (p-8이 사방 여백) */}
+      <FitScaleBox baseW={BASE_TABLE_WIDTH} baseH={CONTENT_BLOCK_HEIGHT}>
+        <div className="w-full h-full flex flex-col">
+          <div className="flex-1 min-h-0">
+            <TemplateTable main={main} months={months} monthNums={monthNums} data={data} />
+          </div>
+          {/* 주석 폰트 15px: 이 표 블록은 폭 1544 기준으로 축소되고, 로그인 회원 PV
+              2번째 페이지 주석은 폭 1132 기준이라, 화면상 같은 크기로 보이려면
+              11 × (1544/1132) ≈ 15px 가 필요하다. */}
+          <div className="shrink-0 mt-3 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">
+            {TABLE_NOTES.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
           </div>
         </div>
-        <div
-          className="shrink-0 mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400"
-          style={{ width: scaledWidth }}
-        >
-          {TABLE_NOTES.map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
-        </div>
-      </div>
+      </FitScaleBox>
     </div>
   );
 }
@@ -321,7 +276,6 @@ export default function PvUvOverview() {
     latestMonth - 1,
     latestMonth,
   ];
-  const scale = useTableScale();
 
   return (
     <>
@@ -347,7 +301,6 @@ export default function PvUvOverview() {
             monthNums={monthNums}
             data={displayAdData?.totalVisit ?? null}
             border="b"
-            scale={scale}
           />
 
           {/* 페이지 2: 로그인 회원 방문통계 (표 b) */}
@@ -358,7 +311,6 @@ export default function PvUvOverview() {
             monthNums={monthNums}
             data={displayAdData?.memberVisit ?? null}
             border="t"
-            scale={scale}
           />
         </div>
       </div>

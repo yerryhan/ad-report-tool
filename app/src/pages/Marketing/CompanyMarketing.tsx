@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
-import { Link } from "react-router";
 import PageMeta from "../../components/common/PageMeta";
 import { useGadaData } from "../../context/GadaDataContext";
 import { useColorTheme } from "../../context/ColorThemeContext";
+import { PageTitle, FitScaleBox, EmptyState } from "../../components/report/SlideKit";
 
 // ── 상수 ────────────────────────────────────────────────────────────────
 const MONTH_LABELS = [
@@ -216,51 +216,6 @@ function CompanyMarketingTable({ main }: { main: string }) {
   );
 }
 
-// ── 고정 비율 콘텐츠를 박스에 맞춰 균일 스케일 ──────────────────────────
-// 부모(16:9 슬라이드)에서 받은 영역을 ResizeObserver로 측정해, baseW×baseH
-// 콘텐츠를 가로/세로 모두 넘치지 않는 최대 배율로 균일 축소(비율 변형 없음).
-// 부모(p-8 등)의 패딩이 그대로 사방 여백으로 남는다. (창 높이가 아닌 실제 박스 기준)
-function FitScaleBox({
-  baseW,
-  baseH,
-  children,
-}: {
-  baseW: number;
-  baseH: number;
-  children: React.ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const update = () => {
-      const s = Math.min(el.clientWidth / baseW, el.clientHeight / baseH);
-      if (s > 0) setScale(Math.min(1, s));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [baseW, baseH]);
-  return (
-    <div ref={ref} className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
-      <div style={{ width: baseW * scale, height: baseH * scale }}>
-        <div
-          style={{
-            width: baseW,
-            height: baseH,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-          }}
-        >
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // 주차 라벨 생성 (하드코딩 금지 — M월 기준 1~5주차 자동 생성, pptx 내보내기 시 수정 가능)
 function makeWeekLabels(month: number): string[] {
   return Array.from({ length: 5 }, (_, i) => `${month}월 ${i + 1}주차`);
@@ -369,29 +324,6 @@ function makeGroupedBarOptions(yMax: number, mainColor: string, subColor: string
     },
     tooltip: { y: { formatter: (v: number) => `${v}명` } },
   };
-}
-
-// ── 데이터 없음 공통 표시 ────────────────────────────────────────────────
-function EmptyState() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
-          <svg className="text-gray-400 dark:text-gray-500" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
-          </svg>
-        </div>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">업로드된 데이터가 없습니다</p>
-        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">먼저 가다실 엑셀 파일을 업로드해주세요</p>
-        <Link
-          to="/data/upload"
-          className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-4 text-xs font-medium text-white hover:bg-brand-600 transition-colors"
-        >
-          데이터 업로드로 이동
-        </Link>
-      </div>
-    </div>
-  );
 }
 
 // ── 이전 데이터 입력 모달 ────────────────────────────────────────────────
@@ -540,18 +472,6 @@ function ResponsiveDonut({
         </span>
       </div>
     </div>
-  );
-}
-
-// ── 페이지 제목 ─────────────────────────────────────────────────────────
-// 앞부분("기업체별 마케팅 현황")은 차트 제목(text-sm)보다 2pt 큰 Bold,
-// dash 뒷부분은 차트 제목과 동일한 폰트(text-sm font-bold).
-function PageTitle({ main, sub }: { main: string; sub?: string }) {
-  return (
-    <h2 className="shrink-0 text-gray-900 dark:text-white">
-      <span className="text-base font-bold">{main}</span>
-      {sub ? <span className="text-sm font-bold">{` - ${sub}`}</span> : null}
-    </h2>
   );
 }
 
@@ -1088,12 +1008,17 @@ export default function CompanyMarketing() {
             )}
           </div>
 
-          {/* ══ 페이지 3: (빈 페이지 — 추후 작업 예정) ════════════════════ */}
+          {/* ══ 페이지 3: 상세내역 (빈 본문 — 추후 작업 예정) ════════════ */}
           {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
           <div
             className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
             style={{ aspectRatio: "16 / 9" }}
-          />
+          >
+            <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
+              <PageTitle main="기업체별 마케팅 현황" sub="상세내역" />
+            </div>
+            <div className="flex-1 min-h-0" />
+          </div>
 
           {/* ══ 섹션 2: a/b 성별 통계 (패키지) ════════════════════════════ */}
           {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
