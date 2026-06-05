@@ -5,6 +5,7 @@ import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
 import { PageTitle, EmptyState } from "../../components/report/SlideKit";
+import { SlideFrame } from "../../report/SlideFrame";
 import type { MemberAgeCounts } from "../../types/gada";
 import {
   GroupIcon,
@@ -225,13 +226,9 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
   // 도넛(클릭률)·총PV·막대는 가다실(클릭수)+회원통계(PV) 둘 다 필요
   if (!gadaData || !memberStatsData) {
     return (
-      <div
-        className={`w-full flex flex-col p-8 bg-white dark:bg-gray-800 ${
-          border === "b"
-            ? "border-b border-gray-200 dark:border-gray-700"
-            : "border-t border-gray-200 dark:border-gray-700"
-        }`}
-        style={{ aspectRatio: "16 / 9" }}
+      <SlideFrame
+        title={`로그인 회원 연령대 기준 - 광고 클릭률 현황(${genderLabel})`}
+        border={border}
       >
         <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
           <PageTitle main="로그인 회원 연령대 기준" sub={`광고 클릭률 현황(${genderLabel})`} />
@@ -240,7 +237,7 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
           title="필요한 데이터가 없습니다"
           desc="가다실 통계와 통계정보(회원) 파일을 업로드해주세요"
         />
-      </div>
+      </SlideFrame>
     );
   }
 
@@ -360,13 +357,9 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
   };
 
   return (
-    <div
-      className={`w-full flex flex-col p-8 bg-white dark:bg-gray-800 ${
-        border === "b"
-          ? "border-b border-gray-200 dark:border-gray-700"
-          : "border-t border-gray-200 dark:border-gray-700"
-      }`}
-      style={{ aspectRatio: "16 / 9" }}
+    <SlideFrame
+      title={`로그인 회원 연령대 기준 - 광고 클릭률 현황(${genderLabel})`}
+      border={border}
     >
       {/* 슬라이드 제목 */}
       <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
@@ -413,7 +406,12 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
               style={{ boxShadow: "0 2px 14px rgba(0,0,0,0.08)" }}
             >
               {/* 아이콘 (남성=메인컬러, 여성=서브컬러) */}
-              <span className="shrink-0" style={{ color: accent }}>
+              {/* data-export-image: PPTX 내보내기에서 이 아이콘을 캡처해 삽입(화면 표시 변화 없음) */}
+              <span
+                data-export-image={`agectr-icon-${gender}`}
+                className="shrink-0"
+                style={{ color: accent }}
+              >
                 <GroupIcon className="w-7 h-7" />
               </span>
               {/* 라벨 */}
@@ -472,7 +470,17 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
 
         </div>
       </div>
-    </div>
+    </SlideFrame>
+  );
+}
+
+// ── 슬라이드 묶음 (메뉴 페이지 / 대시보드 미리보기 공용) ──────────────────
+export function AgeCtrDeck() {
+  return (
+    <>
+      <AgeCtrSlide gender="male" border="b" />
+      <AgeCtrSlide gender="female" border="t" />
+    </>
   );
 }
 
@@ -494,8 +502,7 @@ export default function AgeCtr() {
 
         {/* 스크롤 영역: 남성/여성 두 슬라이드 (1920×1080) */}
         <div className="flex-1 overflow-y-auto font-nanum">
-          <AgeCtrSlide gender="male" border="b" />
-          <AgeCtrSlide gender="female" border="t" />
+          <AgeCtrDeck />
         </div>
       </div>
     </>

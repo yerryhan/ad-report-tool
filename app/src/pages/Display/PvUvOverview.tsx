@@ -2,6 +2,7 @@ import PageMeta from "../../components/common/PageMeta";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { useGadaData } from "../../context/GadaDataContext";
 import { PageTitle, FitScaleBox } from "../../components/report/SlideKit";
+import { SlideFrame } from "../../report/SlideFrame";
 import type {
   DisplayAdData,
   VisitPlacementRow,
@@ -234,14 +235,7 @@ function PageSection({
   border: "b" | "t";
 }) {
   return (
-    <div
-      className={`w-full flex flex-col p-8 bg-white dark:bg-gray-800 ${
-        border === "b"
-          ? "border-b border-gray-200 dark:border-gray-700"
-          : "border-t border-gray-200 dark:border-gray-700"
-      }`}
-      style={{ aspectRatio: "16 / 9" }}
-    >
+    <SlideFrame title={`디스플레이 광고 현황 - ${sub}`} border={border}>
       <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
         <PageTitle main="디스플레이 광고 현황" sub={sub} />
       </div>
@@ -261,12 +255,12 @@ function PageSection({
           </div>
         </div>
       </FitScaleBox>
-    </div>
+    </SlideFrame>
   );
 }
 
-// ── 메인 컴포넌트 ────────────────────────────────────────────────────────
-export default function PvUvOverview() {
+// ── 슬라이드 묶음 (메뉴 페이지 / 대시보드 미리보기 공용) ──────────────────
+export function PvUvDeck() {
   const { currentTheme } = useColorTheme();
   const { displayAdData } = useGadaData();
   const latestMonth = latestDataMonth(displayAdData);
@@ -277,6 +271,33 @@ export default function PvUvOverview() {
     latestMonth,
   ];
 
+  return (
+    <>
+      {/* 페이지 1: 전체 방문통계 (표 a) */}
+      <PageSection
+        sub="PV/UV 전체 현황(전체 방문통계)"
+        main={currentTheme.main}
+        months={months}
+        monthNums={monthNums}
+        data={displayAdData?.totalVisit ?? null}
+        border="b"
+      />
+
+      {/* 페이지 2: 로그인 회원 방문통계 (표 b) */}
+      <PageSection
+        sub="PV/UV 전체 현황(로그인 회원 방문통계)"
+        main={currentTheme.main}
+        months={months}
+        monthNums={monthNums}
+        data={displayAdData?.memberVisit ?? null}
+        border="t"
+      />
+    </>
+  );
+}
+
+// ── 메인 컴포넌트 ────────────────────────────────────────────────────────
+export default function PvUvOverview() {
   return (
     <>
       <PageMeta title="PV/UV 전체 현황" description="디스플레이 광고 현황 - PV/UV 전체 현황" />
@@ -293,25 +314,7 @@ export default function PvUvOverview() {
 
         {/* ── 스크롤 영역: 페이지 두 개를 스크롤로 이동 ──────────────── */}
         <div className="flex-1 overflow-y-auto font-nanum">
-          {/* 페이지 1: 전체 방문통계 (표 a) */}
-          <PageSection
-            sub="PV/UV 전체 현황(전체 방문통계)"
-            main={currentTheme.main}
-            months={months}
-            monthNums={monthNums}
-            data={displayAdData?.totalVisit ?? null}
-            border="b"
-          />
-
-          {/* 페이지 2: 로그인 회원 방문통계 (표 b) */}
-          <PageSection
-            sub="PV/UV 전체 현황(로그인 회원 방문통계)"
-            main={currentTheme.main}
-            months={months}
-            monthNums={monthNums}
-            data={displayAdData?.memberVisit ?? null}
-            border="t"
-          />
+          <PvUvDeck />
         </div>
       </div>
     </>

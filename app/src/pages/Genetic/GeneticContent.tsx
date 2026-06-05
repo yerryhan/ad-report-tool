@@ -1,5 +1,19 @@
 import PageMeta from "../../components/common/PageMeta";
 import { PageTitle } from "../../components/report/SlideKit";
+import { SlideFrame } from "../../report/SlideFrame";
+
+// ── 슬라이드(추후 작업 예정 — 빈 본문) ──────────────────────────────────
+// 메뉴 페이지와 대시보드 미리보기에서 공용으로 쓰는 슬라이드 묶음.
+export function GeneticDeck() {
+  return (
+    <SlideFrame title="유전자 검사 콘텐츠 현황">
+      <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
+        <PageTitle main="한컴Gx 유전자 검사 결과지 컨텐츠 현황" />
+      </div>
+      <div className="flex-1 min-h-0" />
+    </SlideFrame>
+  );
+}
 
 export default function GeneticContent() {
   return (
@@ -18,17 +32,7 @@ export default function GeneticContent() {
 
         {/* ── 스크롤 영역 ──────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto font-nanum">
-          {/* ══ 페이지 1: (빈 본문 — 추후 작업 예정) ════════════════════ */}
-          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
-          <div
-            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-            style={{ aspectRatio: "16 / 9" }}
-          >
-            <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
-              <PageTitle main="한컴Gx 유전자 검사 결과지 컨텐츠 현황" />
-            </div>
-            <div className="flex-1 min-h-0" />
-          </div>
+          <GeneticDeck />
         </div>
       </div>
     </>

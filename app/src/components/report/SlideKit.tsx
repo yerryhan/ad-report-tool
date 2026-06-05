@@ -1,10 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useSlideVariant } from "../../report/SlideContext";
 
 // ── 페이지 제목 ─────────────────────────────────────────────────────────
 // 모든 시각화 페이지 공통 규칙: 앞부분(main)은 큰 Bold(text-base),
 // 하이픈 뒤(sub)는 조금 작은 Bold(text-sm).
+// 미리보기/PPTX(preview) 맥락에서는 헤더 제목을 4pt(=최종 슬라이드 기준, 1920px 베이스 +8px)
+// 키워 슬라이드 가독성을 높인다.
 export function PageTitle({ main, sub }: { main: string; sub?: string }) {
+  const variant = useSlideVariant();
+  if (variant === "preview") {
+    return (
+      <h2 className="shrink-0 text-gray-900">
+        <span style={{ fontWeight: 700, fontSize: 24 }}>{main}</span>
+        {sub ? (
+          <span style={{ fontWeight: 700, fontSize: 22 }}>{` - ${sub}`}</span>
+        ) : null}
+      </h2>
+    );
+  }
   return (
     <h2 className="shrink-0 text-gray-900 dark:text-white">
       <span className="text-base font-bold">{main}</span>

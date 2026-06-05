@@ -5,6 +5,8 @@ import PageMeta from "../../components/common/PageMeta";
 import { useGadaData } from "../../context/GadaDataContext";
 import { useColorTheme } from "../../context/ColorThemeContext";
 import { PageTitle, FitScaleBox, EmptyState } from "../../components/report/SlideKit";
+import { SlideFrame } from "../../report/SlideFrame";
+import { useSlideVariant } from "../../report/SlideContext";
 
 // ── 상수 ────────────────────────────────────────────────────────────────
 const MONTH_LABELS = [
@@ -492,6 +494,7 @@ function SectionCharts({
   prefix,
   subTitle,
   onOpenModal,
+  showEdit,
 }: {
   gadaMonth: number;
   themeName: string;
@@ -508,18 +511,22 @@ function SectionCharts({
   prefix: string;
   subTitle: string;
   onOpenModal: () => void;
+  /** 편집(데이터 수정) 컨트롤 노출 여부 — 미리보기/PPTX에서는 숨김 */
+  showEdit: boolean;
 }) {
   return (
     <>
       {/* 페이지 제목 + 컨트롤 바 */}
       <div className="shrink-0 flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
         <PageTitle main="기업체별 마케팅 현황" sub={subTitle} />
-        <button
-          onClick={onOpenModal}
-          className="h-7 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-        >
-          데이터 수정
-        </button>
+        {showEdit && (
+          <button
+            onClick={onOpenModal}
+            className="h-7 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            데이터 수정
+          </button>
+        )}
       </div>
 
       <div className="flex-1 flex min-h-0">
@@ -622,8 +629,9 @@ function SectionCharts({
   );
 }
 
-// ── 메인 컴포넌트 ────────────────────────────────────────────────────────
-export default function CompanyMarketing() {
+// ── 슬라이드 묶음 (메뉴 페이지 / 대시보드 미리보기 공용) ──────────────────
+// 5개 슬라이드가 공유 상태(monthlyData/모달 등)를 함께 쓰므로 하나의 컴포넌트로 묶는다.
+export function CompanyMarketingDeck() {
   const { currentTheme } = useColorTheme();
   const { gadaData, displayAdData } = useGadaData();
 
@@ -888,30 +896,13 @@ export default function CompanyMarketing() {
   );
 
   // ── 렌더 ────────────────────────────────────────────────────────────
+  const variant = useSlideVariant();
+  const showEdit = variant === "page";
+
   return (
     <>
-      <PageMeta title="기업체별 마케팅 현황" description="기업체별 마케팅 현황" />
-      <div className="h-full flex flex-col">
-
-        {/* ── 페이지 헤더 ───────────────────────────────────────────── */}
-        <div className="flex items-center px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-            기업체별 마케팅 현황
-            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-              기업체·병원별 마케팅 현황
-            </span>
-          </h1>
-        </div>
-
-        {/* ── 스크롤 영역 ──────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto font-nanum">
-
           {/* ══ 페이지 1: 기업체별 마케팅 현황 (표) ═══════════════════════ */}
-          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
-          <div
-            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-            style={{ aspectRatio: "16 / 9" }}
-          >
+          <SlideFrame title="기업체별 마케팅 현황" border="b">
             <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="기업체별 마케팅 현황" />
             </div>
@@ -921,14 +912,10 @@ export default function CompanyMarketing() {
                 <CompanyMarketingTable main={currentTheme.main} />
               </FitScaleBox>
             </div>
-          </div>
+          </SlideFrame>
 
           {/* ══ 페이지 2: 통합 통계 ═══════════════════════════════════════ */}
-          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
-          <div
-            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-            style={{ aspectRatio: "16 / 9" }}
-          >
+          <SlideFrame title="기업체별 마케팅 현황 - 통합 통계" border="b">
             <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="통합 통계" />
             </div>
@@ -1006,26 +993,18 @@ export default function CompanyMarketing() {
 
               </div>
             )}
-          </div>
+          </SlideFrame>
 
           {/* ══ 페이지 3: 상세내역 (빈 본문 — 추후 작업 예정) ════════════ */}
-          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
-          <div
-            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-            style={{ aspectRatio: "16 / 9" }}
-          >
+          <SlideFrame title="기업체별 마케팅 현황 - 상세내역" border="b">
             <div className="shrink-0 pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
               <PageTitle main="기업체별 마케팅 현황" sub="상세내역" />
             </div>
             <div className="flex-1 min-h-0" />
-          </div>
+          </SlideFrame>
 
           {/* ══ 섹션 2: a/b 성별 통계 (패키지) ════════════════════════════ */}
-          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
-          <div
-            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800"
-            style={{ aspectRatio: "16 / 9" }}
-          >
+          <SlideFrame title="기업체별 마케팅 현황 - 검진유형 패키지 성별 통계내역" border="b">
             {!gadaData || !stats ? (
               <EmptyState />
             ) : (
@@ -1045,16 +1024,13 @@ export default function CompanyMarketing() {
                 prefix="s2"
                 subTitle="검진유형 패키지 성별 통계내역"
                 onOpenModal={openModal}
+                showEdit={showEdit}
               />
             )}
-          </div>
+          </SlideFrame>
 
           {/* ══ 섹션 3: c/d 성별 통계 (추가항목) ══════════════════════════ */}
-          {/* 1920×1080(16:9) 비율 고정 — 컨테이너 너비에 따라 세로가 늘어나지 않도록 */}
-          <div
-            className="w-full flex flex-col p-8 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
-            style={{ aspectRatio: "16 / 9" }}
-          >
+          <SlideFrame title="기업체별 마케팅 현황 - 선택 추가항목 성별 통계내역" border="t">
             {!gadaData || !stats3 ? (
               <EmptyState />
             ) : (
@@ -1074,12 +1050,10 @@ export default function CompanyMarketing() {
                 prefix="s3"
                 subTitle="선택 추가항목 성별 통계내역"
                 onOpenModal={openModal3}
+                showEdit={showEdit}
               />
             )}
-          </div>
-
-        </div>
-      </div>
+          </SlideFrame>
 
       {/* ── 섹션2 이전 데이터 입력 모달 ──────────────────────────────── */}
       {showModal && (
@@ -1104,6 +1078,31 @@ export default function CompanyMarketing() {
           onClose={() => setShowModal3(false)}
         />
       )}
+    </>
+  );
+}
+
+// ── 메인 컴포넌트 (라우트) ───────────────────────────────────────────────
+export default function CompanyMarketing() {
+  return (
+    <>
+      <PageMeta title="기업체별 마케팅 현황" description="기업체별 마케팅 현황" />
+      <div className="h-full flex flex-col">
+        {/* ── 페이지 헤더 ───────────────────────────────────────────── */}
+        <div className="flex items-center px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            기업체별 마케팅 현황
+            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+              기업체·병원별 마케팅 현황
+            </span>
+          </h1>
+        </div>
+
+        {/* ── 스크롤 영역 ──────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto font-nanum">
+          <CompanyMarketingDeck />
+        </div>
+      </div>
     </>
   );
 }
