@@ -161,7 +161,7 @@ const CHIP_H = 300; // 상하 패딩을 좌우 패딩의 절반(≈50px)이 되�
 const LEFT_X = -1020; // 좌측 칩: 오른쪽 모서리 ≈ -120
 const RIGHT_X = 2490; // 우측 칩: 왼쪽 모서리
 
-function KoreaMap({ data }: { data: MemberStatsData | null }) {
+export function KoreaMap({ data }: { data: MemberStatsData | null }) {
   const total = data?.totalPv ?? 0;
   return (
     <div

@@ -1,0 +1,223 @@
+import pptxgen from "pptxgenjs";
+import { toPng } from "html-to-image";
+import {
+  buildReportSpec,
+  SLIDE_W,
+  SLIDE_H,
+  type ReportData,
+  type SlideSpec,
+  type Run,
+  type ChartSpec,
+} from "./reportSpec";
+
+// ════════════════════════════════════════════════════════════════════════
+//  공유 사양(SlideSpec[]) → 편집 가능한 네이티브 PPTX
+// ════════════════════════════════════════════════════════════════════════
+
+const GREY_100 = "F3F4F6";
+
+// 기준선·X/Y축: 연한 그레이 + X격자 없음
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const GRID: any = {
+  valGridLine: { color: GREY_100, size: 1 },
+  catGridLine: { style: "none" },
+  catAxisLineColor: GREY_100,
+  valAxisLineColor: GREY_100,
+};
+
+async function fetchDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as string);
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function captureNode(selector: string): Promise<string | null> {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return null;
+  try {
+    return await toPng(el, { cacheBust: true });
+  } catch {
+    return null;
+  }
+}
+
+function runsToProps(runs: Run[], def: { size?: number; color?: string }): pptxgen.TextProps[] {
+  return runs.map((r) => ({
+    text: r.text,
+    options: {
+      bold: r.bold,
+      italic: r.italic,
+      color: r.color ?? def.color,
+      fontSize: r.size ?? def.size,
+    },
+  }));
+}
+
+function legendOpts(legend?: "none" | "top" | "bottom") {
+  if (legend === "top") return { showLegend: true, legendPos: "t" as const };
+  if (legend === "bottom") return { showLegend: true, legendPos: "b" as const };
+  return { showLegend: false };
+}
+
+function addChart(slide: pptxgen.Slide, c: ChartSpec, box: { x: number; y: number; w: number; h: number }) {
+  const colors = c.colors.map((x) => x);
+  const data = c.series.map((s) => ({ name: s.name, labels: c.labels, values: s.values }));
+  const fmt = c.valueSuffix === "%" ? '0.0"%"' : undefined;
+
+  if (c.kind === "doughnut") {
+    slide.addChart("doughnut", [{ name: c.series[0].name, labels: c.labels, values: c.series[0].values }], {
+      ...box, chartColors: colors, ...legendOpts(c.legend), showValue: !!c.showValue,
+      dataLabelFontSize: 8, holeSize: c.holeSize ?? 55,
+      ...(fmt ? { dataLabelFormatCode: fmt } : {}),
+    });
+    if (c.centerText) {
+      slide.addText(runsToProps(c.centerText, {}), { ...box, align: "center", valign: "middle", fontFace: "NanumSquare" });
+    }
+    return;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const opts: any = {
+    ...box, chartColors: colors, ...legendOpts(c.legend),
+    catAxisLabelFontSize: 8, valAxisLabelFontSize: 8,
+    showValue: !!c.showValue, dataLabelFontSize: 8,
+    ...(fmt ? { dataLabelFormatCode: fmt } : {}),
+    ...(c.lightGrid ? GRID : {}),
+  };
+  if (c.kind === "bar") {
+    if (c.stacked) opts.barGrouping = "stacked";
+    slide.addChart("bar", data, opts);
+  } else if (c.kind === "line") {
+    opts.lineSize = 2;
+    opts.lineSmooth = false;
+    slide.addChart("line", data, opts);
+  } else {
+    // area
+    if (c.fillOpacity != null) opts.chartColorsOpacity = c.series.map(() => c.fillOpacity);
+    slide.addChart("area", data, opts);
+  }
+}
+
+async function renderSlide(
+  pptx: pptxgen,
+  spec: SlideSpec,
+  imgMap: Map<string, string>,
+  assetMap: Map<string, string>
+) {
+  const slide = pptx.addSlide();
+  if (spec.bg) {
+    if (spec.bg.src) {
+      const d = imgMap.get(spec.bg.src);
+      slide.background = d ? { data: d } : { color: "FFFFFF" };
+    } else if (spec.bg.color) {
+      slide.background = { color: spec.bg.color };
+    }
+  }
+
+  for (const el of spec.els) {
+    const box = { x: el.x, y: el.y, w: el.w, h: el.h };
+    switch (el.kind) {
+      case "rect":
+        slide.addShape(el.radius ? "roundRect" : "rect", {
+          ...box,
+          fill: el.fill ? { color: el.fill } : { type: "none" },
+          line: el.line ? { color: el.line, width: 1 } : { type: "none" },
+          ...(el.radius ? { rectRadius: el.radius } : {}),
+        });
+        break;
+      case "line":
+        slide.addShape("line", { ...box, line: { color: el.color, width: 1 } });
+        break;
+      case "text":
+        slide.addText(runsToProps(el.runs, { size: el.size, color: el.color }), {
+          ...box, align: el.align ?? "left", valign: el.valign ?? "top",
+          fontFace: el.fontFace ?? "NanumSquare",
+          ...(el.fill ? { fill: { color: el.fill } } : {}),
+          ...(el.lineSpacingMultiple ? { lineSpacingMultiple: el.lineSpacingMultiple } : {}),
+        });
+        break;
+      case "image": {
+        const d = imgMap.get(el.src);
+        if (d) slide.addImage({ data: d, ...box, ...(el.contain ? { sizing: { type: "contain", w: el.w, h: el.h } } : {}) });
+        break;
+      }
+      case "asset": {
+        const d = assetMap.get(el.tag);
+        if (d) slide.addImage({ data: d, ...box, sizing: { type: "contain", w: el.w, h: el.h } });
+        break;
+      }
+      case "table": {
+        const rows: pptxgen.TableRow[] = el.rows.map((row) =>
+          row.map((c) => ({
+            text: c.text,
+            options: {
+              fill: c.fill ? { color: c.fill } : undefined,
+              color: c.color, bold: c.bold,
+              align: c.align ?? "center", valign: c.valign ?? "middle",
+              fontSize: c.size, colspan: c.colspan, rowspan: c.rowspan,
+            },
+          }))
+        );
+        slide.addTable(rows, {
+          ...box, colW: el.colW, fontFace: el.fontFace ?? "NanumSquare", valign: "middle",
+          border: { type: "solid", pt: 0.5, color: el.borderColor ?? "D1D5DB" },
+        });
+        break;
+      }
+      case "chart":
+        addChart(slide, el.chart, box);
+        break;
+    }
+  }
+}
+
+export async function exportReportPptx(data: ReportData, fileName: string): Promise<void> {
+  if (document.fonts?.ready) {
+    try { await document.fonts.ready; } catch { /* noop */ }
+  }
+  const slides = buildReportSpec(data);
+
+  // 이미지 src 수집 → dataURL
+  const srcs = new Set<string>();
+  const tags = new Set<string>();
+  for (const s of slides) {
+    if (s.bg?.src) srcs.add(s.bg.src);
+    for (const el of s.els) {
+      if (el.kind === "image") srcs.add(el.src);
+      if (el.kind === "asset") tags.add(el.tag);
+    }
+  }
+  const origin = window.location.origin;
+  const imgMap = new Map<string, string>();
+  await Promise.all(
+    [...srcs].map(async (src) => {
+      const d = await fetchDataUrl(src.startsWith("http") ? src : origin + src);
+      if (d) imgMap.set(src, d);
+    })
+  );
+  const assetMap = new Map<string, string>();
+  await Promise.all(
+    [...tags].map(async (tag) => {
+      const d = await captureNode(`[data-export-image="${tag}"]`);
+      if (d) assetMap.set(tag, d);
+    })
+  );
+
+  const pptx = new pptxgen();
+  pptx.defineLayout({ name: "HC_16x9", width: SLIDE_W, height: SLIDE_H });
+  pptx.layout = "HC_16x9";
+
+  for (const s of slides) await renderSlide(pptx, s, imgMap, assetMap);
+
+  await pptx.writeFile({ fileName });
+}

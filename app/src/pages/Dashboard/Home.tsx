@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PageMeta from "../../components/common/PageMeta";
 import { ReportDeck } from "../../report/ReportDeck";
-import { exportReportPptx } from "../../report/exportPptxNative";
+import { exportReportPptx } from "../../report/specToPptx";
 import { useGadaData } from "../../context/GadaDataContext";
 import { useColorTheme } from "../../context/ColorThemeContext";
 
@@ -20,18 +20,20 @@ export default function Home() {
     if (exporting) return;
     setExporting(true);
     try {
-      await exportReportPptx({
-        theme: {
-          name: currentTheme.name,
-          main: currentTheme.main,
-          sub: currentTheme.sub,
+      await exportReportPptx(
+        {
+          theme: {
+            name: currentTheme.name,
+            main: currentTheme.main,
+            sub: currentTheme.sub,
+          },
+          gadaData,
+          displayAdData,
+          memberStatsData,
+          memberStatsByMonth,
         },
-        gadaData,
-        displayAdData,
-        memberStatsData,
-        memberStatsByMonth,
-        fileName: `한국MSD_가다실9_광고마케팅_리포트_${formattedDate}.pptx`,
-      });
+        `한국MSD_가다실9_광고마케팅_리포트_${formattedDate}.pptx`
+      );
     } catch (err) {
       console.error(err);
       alert(
