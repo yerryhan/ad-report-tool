@@ -79,7 +79,7 @@ function TableEl({ el }: { el: Extract<El, { kind: "table" }> }) {
         </colgroup>
         <tbody>
           {el.rows.map((row, ri) => (
-            <tr key={ri}>
+            <tr key={ri} style={el.rowH ? { height: el.rowH[ri] * PX } : undefined}>
               {row.map((cell, ci) => (
                 <td
                   key={ci}
@@ -88,7 +88,7 @@ function TableEl({ el }: { el: Extract<El, { kind: "table" }> }) {
                   style={{
                     background: cell.fill ? c(cell.fill) : "#FFFFFF",
                     color: c(cell.color ?? "000000"),
-                    fontWeight: cell.bold ? 700 : 400,
+                    fontWeight: cell.extraBold ? 800 : cell.bold ? 700 : 400,
                     textAlign: cell.align ?? "center",
                     verticalAlign: cell.valign ?? "middle",
                     border,
@@ -96,6 +96,7 @@ function TableEl({ el }: { el: Extract<El, { kind: "table" }> }) {
                     padding: "2px 4px",
                     lineHeight: 1.25,
                     overflow: "hidden",
+                    whiteSpace: "pre-line",
                     wordBreak: "keep-all",
                   }}
                 >
@@ -143,7 +144,7 @@ function ApexFromSpec({ spec, wPx, hPx }: { spec: ChartSpec; wPx: number; hPx: n
       chart: { type: "donut", fontFamily: "NanumSquare", animations: { enabled: false }, background: "transparent" },
       labels: spec.labels,
       colors,
-      stroke: { show: true, width: 2, colors: ["#ffffff"] },
+      stroke: { show: true, width: 2, colors: [c(spec.strokeColor ?? "FFFFFF")] },
       dataLabels: {
         enabled: !!spec.showValue,
         formatter: (_v, opts) => `${Number(opts.w.config.series[opts.seriesIndex]).toFixed(1)}%`,
@@ -181,15 +182,22 @@ function ApexFromSpec({ spec, wPx, hPx }: { spec: ChartSpec; wPx: number; hPx: n
     legend,
     grid: lightGridOpts,
     xaxis: { categories: spec.labels, ...lightAxis, labels: { ...axisLabel, rotate: spec.labels.some((l) => l.length > 4) ? -30 : 0, trim: false } },
-    yaxis: { labels: axisLabel, ...lightAxis },
+    yaxis: {
+      labels: spec.hideValAxis
+        ? { show: false }
+        : { ...axisLabel, ...(spec.valAxisSuffix ? { formatter: (v: number) => `${Math.round(v)}${spec.valAxisSuffix}` } : {}) },
+      ...lightAxis,
+    },
     tooltip: { enabled: false },
   };
 
   if (spec.kind === "bar") {
+    const atBase = spec.valuePosition === "bottom";
     const options: ApexOptions = {
       ...common,
       chart: { ...common.chart, type: "bar" },
-      plotOptions: { bar: { distributed, columnWidth: "55%", borderRadius: 3, dataLabels: { position: "top" } } },
+      dataLabels: { ...common.dataLabels, offsetY: atBase ? -4 : -16 },
+      plotOptions: { bar: { distributed, columnWidth: "55%", borderRadius: 3, dataLabels: { position: atBase ? "bottom" : "top" } } },
     };
     const series = distributed
       ? [{ name: spec.series[0].name, data: spec.series[0].values }]

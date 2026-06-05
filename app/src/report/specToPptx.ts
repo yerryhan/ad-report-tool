@@ -51,6 +51,58 @@ async function captureNode(selector: string): Promise<string | null> {
   }
 }
 
+// 지도(KoreaMap)는 SVG <mask> + 외부 SVG <image href> + 필터로 구성돼 html-to-image가
+// 캡처하지 못한다(빈 이미지). 실제 <svg>를 직렬화하고 외부 이미지를 dataURL로 인라인한 뒤
+// <img>→canvas 로 직접 래스터화하면 마스크/필터까지 정확히 그려진다.
+async function captureSvgNode(selector: string, scale = 2): Promise<string | null> {
+  const container = document.querySelector<HTMLElement>(selector);
+  const svg = container?.querySelector("svg");
+  if (!svg) return null;
+  const rect = svg.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  // 외부 리소스(href)를 dataURL로 인라인 — <img> 로드 SVG는 외부 fetch가 금지되기 때문.
+  const images = Array.from(clone.querySelectorAll("image"));
+  await Promise.all(
+    images.map(async (im) => {
+      const href = im.getAttribute("href") || im.getAttribute("xlink:href");
+      if (!href || href.startsWith("data:")) return;
+      const d = await fetchDataUrl(href.startsWith("http") ? href : window.location.origin + href);
+      if (d) {
+        im.setAttribute("href", d);
+        im.removeAttribute("xlink:href");
+      }
+    })
+  );
+  clone.setAttribute("width", String(w));
+  clone.setAttribute("height", String(h));
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+
+  return await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(null);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        resolve(canvas.toDataURL("image/png"));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = svgUrl;
+  });
+}
+
 function runsToProps(runs: Run[], def: { size?: number; color?: string }): pptxgen.TextProps[] {
   return runs.map((r) => ({
     text: r.text,
@@ -78,6 +130,7 @@ function addChart(slide: pptxgen.Slide, c: ChartSpec, box: { x: number; y: numbe
     slide.addChart("doughnut", [{ name: c.series[0].name, labels: c.labels, values: c.series[0].values }], {
       ...box, chartColors: colors, ...legendOpts(c.legend), showValue: !!c.showValue,
       dataLabelFontSize: 8, holeSize: c.holeSize ?? 55,
+      ...(c.strokeColor ? { dataBorder: { pt: 1, color: c.strokeColor } } : {}),
       ...(fmt ? { dataLabelFormatCode: fmt } : {}),
     });
     if (c.centerText) {
@@ -93,9 +146,12 @@ function addChart(slide: pptxgen.Slide, c: ChartSpec, box: { x: number; y: numbe
     showValue: !!c.showValue, dataLabelFontSize: 8,
     ...(fmt ? { dataLabelFormatCode: fmt } : {}),
     ...(c.lightGrid ? GRID : {}),
+    ...(c.hideValAxis ? { valAxisHidden: true, valGridLine: { style: "none" } } : {}),
+    ...(c.valAxisSuffix ? { valAxisLabelFormatCode: `0"${c.valAxisSuffix}"` } : {}),
   };
   if (c.kind === "bar") {
     if (c.stacked) opts.barGrouping = "stacked";
+    if (c.valuePosition === "bottom") opts.dataLabelPosition = "inBase";
     slide.addChart("bar", data, opts);
   } else if (c.kind === "line") {
     opts.lineSize = 2;
@@ -162,14 +218,15 @@ async function renderSlide(
             text: c.text,
             options: {
               fill: c.fill ? { color: c.fill } : undefined,
-              color: c.color, bold: c.bold,
+              color: c.color, bold: c.bold || c.extraBold,
               align: c.align ?? "center", valign: c.valign ?? "middle",
               fontSize: c.size, colspan: c.colspan, rowspan: c.rowspan,
+              ...(c.extraBold ? { fontFace: "NanumSquare ExtraBold" } : {}),
             },
           }))
         );
         slide.addTable(rows, {
-          ...box, colW: el.colW, fontFace: el.fontFace ?? "NanumSquare", valign: "middle",
+          ...box, colW: el.colW, ...(el.rowH ? { rowH: el.rowH } : {}), fontFace: el.fontFace ?? "NanumSquare", valign: "middle",
           border: { type: "solid", pt: 0.5, color: el.borderColor ?? "D1D5DB" },
         });
         break;
@@ -189,12 +246,12 @@ export async function exportReportPptx(data: ReportData, fileName: string): Prom
 
   // 이미지 src 수집 → dataURL
   const srcs = new Set<string>();
-  const tags = new Set<string>();
+  const assetKind = new Map<string, "map" | "icon">();
   for (const s of slides) {
     if (s.bg?.src) srcs.add(s.bg.src);
     for (const el of s.els) {
       if (el.kind === "image") srcs.add(el.src);
-      if (el.kind === "asset") tags.add(el.tag);
+      if (el.kind === "asset") assetKind.set(el.tag, el.asset);
     }
   }
   const origin = window.location.origin;
@@ -207,8 +264,9 @@ export async function exportReportPptx(data: ReportData, fileName: string): Prom
   );
   const assetMap = new Map<string, string>();
   await Promise.all(
-    [...tags].map(async (tag) => {
-      const d = await captureNode(`[data-export-image="${tag}"]`);
+    [...assetKind].map(async ([tag, kind]) => {
+      const selector = `[data-export-image="${tag}"]`;
+      const d = kind === "map" ? await captureSvgNode(selector) : await captureNode(selector);
       if (d) assetMap.set(tag, d);
     })
   );
