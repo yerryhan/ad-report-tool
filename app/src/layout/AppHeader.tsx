@@ -164,8 +164,11 @@ const AppHeader: React.FC = () => {
             <NotificationDropdown />
             {/* <!-- Notification Menu Area --> */}
           </div>
-          {/* <!-- User Area --> */}
-          <UserDropdown />
+          {/* <!-- User Area — 요청에 따라 삭제하지 않고 숨김(display:none).
+                 flex gap 은 숨김 항목에 적용되지 않아 좌측 버튼군이 우측 끝으로 자연스럽게 정렬됨. --> */}
+          <div className="hidden">
+            <UserDropdown />
+          </div>
         </div>
       </div>
     </header>

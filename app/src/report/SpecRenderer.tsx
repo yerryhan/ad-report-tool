@@ -93,7 +93,7 @@ function TableEl({ el }: { el: Extract<El, { kind: "table" }> }) {
                     verticalAlign: cell.valign ?? "middle",
                     border,
                     fontSize: (cell.size ?? 9) * PT,
-                    padding: "2px 4px",
+                    padding: el.tightCells ? "1px 1px" : "2px 4px",
                     lineHeight: 1.25,
                     overflow: "hidden",
                     whiteSpace: "pre-line",
@@ -148,7 +148,7 @@ function ApexFromSpec({ spec, wPx, hPx }: { spec: ChartSpec; wPx: number; hPx: n
       dataLabels: {
         enabled: !!spec.showValue,
         formatter: (_v, opts) => `${Number(opts.w.config.series[opts.seriesIndex]).toFixed(1)}%`,
-        style: { fontSize: "9px", fontWeight: 700 },
+        style: { fontSize: "10px", fontWeight: 700 },
         dropShadow: { enabled: false },
       },
       legend: spec.legend === "none" ? { show: false } : legend,
@@ -187,6 +187,7 @@ function ApexFromSpec({ spec, wPx, hPx }: { spec: ChartSpec; wPx: number; hPx: n
         ? { show: false }
         : { ...axisLabel, ...(spec.valAxisSuffix ? { formatter: (v: number) => `${Math.round(v)}${spec.valAxisSuffix}` } : {}) },
       ...lightAxis,
+      ...(spec.valAxisTitle ? { title: { text: spec.valAxisTitle, style: { fontSize: "9px", color: "#9CA3AF", fontWeight: 400 } } } : {}),
     },
     tooltip: { enabled: false },
   };

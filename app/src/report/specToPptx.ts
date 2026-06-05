@@ -51,18 +51,22 @@ async function captureNode(selector: string): Promise<string | null> {
   }
 }
 
-// 지도(KoreaMap)는 SVG <mask> + 외부 SVG <image href> + 필터로 구성돼 html-to-image가
-// 캡처하지 못한다(빈 이미지). 실제 <svg>를 직렬화하고 외부 이미지를 dataURL로 인라인한 뒤
-// <img>→canvas 로 직접 래스터화하면 마스크/필터까지 정확히 그려진다.
-async function captureSvgNode(selector: string, scale = 2): Promise<string | null> {
+// 지도(KoreaMap)·아이콘(GroupIcon)은 SVG <mask>/외부 <image href>/필터/`currentColor` 로
+// 구성돼 html-to-image가 캡처하지 못한다(빈 이미지). 실제 <svg>를 직렬화하고 외부 이미지를
+// dataURL로 인라인 + currentColor 를 실제 색으로 고정한 뒤 <img>→canvas 로 래스터화하면
+// 마스크/필터/아이콘 색까지 정확히 그려진다.
+async function captureSvgNode(selector: string, scale = 3): Promise<string | null> {
   const container = document.querySelector<HTMLElement>(selector);
   const svg = container?.querySelector("svg");
   if (!svg) return null;
   const rect = svg.getBoundingClientRect();
-  const w = Math.max(1, Math.round(rect.width));
-  const h = Math.max(1, Math.round(rect.height));
+  const w = Math.max(1, Math.round(rect.width * scale));
+  const h = Math.max(1, Math.round(rect.height * scale));
 
   const clone = svg.cloneNode(true) as SVGSVGElement;
+  // currentColor(아이콘 fill) 를 실제 계산색으로 고정 — 단독 SVG에는 상속 컨텍스트가 없으므로.
+  const color = getComputedStyle(svg).color;
+  if (color) clone.style.color = color;
   // 외부 리소스(href)를 dataURL로 인라인 — <img> 로드 SVG는 외부 fetch가 금지되기 때문.
   const images = Array.from(clone.querySelectorAll("image"));
   await Promise.all(
@@ -76,8 +80,12 @@ async function captureSvgNode(selector: string, scale = 2): Promise<string | nul
       }
     })
   );
+  // width/height 를 픽셀로 고정(속성+스타일 모두) — 인라인 style 의 100% 가 단독 SVG에서
+  // 0/순환 크기가 되는 것을 방지.
   clone.setAttribute("width", String(w));
   clone.setAttribute("height", String(h));
+  clone.style.width = `${w}px`;
+  clone.style.height = `${h}px`;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
   const xml = new XMLSerializer().serializeToString(clone);
@@ -87,11 +95,11 @@ async function captureSvgNode(selector: string, scale = 2): Promise<string | nul
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = w * scale;
-      canvas.height = h * scale;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) return resolve(null);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, w, h);
       try {
         resolve(canvas.toDataURL("image/png"));
       } catch {
@@ -129,7 +137,7 @@ function addChart(slide: pptxgen.Slide, c: ChartSpec, box: { x: number; y: numbe
   if (c.kind === "doughnut") {
     slide.addChart("doughnut", [{ name: c.series[0].name, labels: c.labels, values: c.series[0].values }], {
       ...box, chartColors: colors, ...legendOpts(c.legend), showValue: !!c.showValue,
-      dataLabelFontSize: 8, holeSize: c.holeSize ?? 55,
+      dataLabelFontSize: 9, holeSize: c.holeSize ?? 55,
       ...(c.strokeColor ? { dataBorder: { pt: 1, color: c.strokeColor } } : {}),
       ...(fmt ? { dataLabelFormatCode: fmt } : {}),
     });
@@ -148,6 +156,7 @@ function addChart(slide: pptxgen.Slide, c: ChartSpec, box: { x: number; y: numbe
     ...(c.lightGrid ? GRID : {}),
     ...(c.hideValAxis ? { valAxisHidden: true, valGridLine: { style: "none" } } : {}),
     ...(c.valAxisSuffix ? { valAxisLabelFormatCode: `0"${c.valAxisSuffix}"` } : {}),
+    ...(c.valAxisTitle ? { showValAxisTitle: true, valAxisTitle: c.valAxisTitle, valAxisTitleFontSize: 9 } : {}),
   };
   if (c.kind === "bar") {
     if (c.stacked) opts.barGrouping = "stacked";
@@ -227,6 +236,7 @@ async function renderSlide(
         );
         slide.addTable(rows, {
           ...box, colW: el.colW, ...(el.rowH ? { rowH: el.rowH } : {}), fontFace: el.fontFace ?? "NanumSquare", valign: "middle",
+          ...(el.tightCells ? { margin: 1 } : {}),
           border: { type: "solid", pt: 0.5, color: el.borderColor ?? "D1D5DB" },
         });
         break;
@@ -264,9 +274,10 @@ export async function exportReportPptx(data: ReportData, fileName: string): Prom
   );
   const assetMap = new Map<string, string>();
   await Promise.all(
-    [...assetKind].map(async ([tag, kind]) => {
+    [...assetKind].map(async ([tag]) => {
       const selector = `[data-export-image="${tag}"]`;
-      const d = kind === "map" ? await captureSvgNode(selector) : await captureNode(selector);
+      // map·icon 모두 SVG라서 네이티브 래스터화로 캡처(아이콘 currentColor 포함). 실패 시 html-to-image 폴백.
+      const d = (await captureSvgNode(selector)) ?? (await captureNode(selector));
       if (d) assetMap.set(tag, d);
     })
   );

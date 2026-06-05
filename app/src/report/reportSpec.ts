@@ -56,6 +56,15 @@ const hex = (c: string) => c.replace("#", "").toUpperCase();
 const fmtNum = (v: number | undefined): string =>
   v === undefined || v === null || Number.isNaN(v) ? "" : v.toLocaleString("ko-KR");
 
+// 색을 흰색 쪽으로 ratio(0~1)만큼 섞어 밝게 만든 tint 색(hex, no '#').
+function tint(color: string, ratio: number): string {
+  const h = hex(color);
+  const ch = (i: number) => parseInt(h.slice(i, i + 2), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * ratio);
+  const to2 = (n: number) => mix(n).toString(16).padStart(2, "0").toUpperCase();
+  return to2(ch(0)) + to2(ch(2)) + to2(ch(4));
+}
+
 // ── 요소 타입 ────────────────────────────────────────────────────────────
 export type Align = "left" | "center" | "right";
 export type VAlign = "top" | "middle" | "bottom";
@@ -85,6 +94,7 @@ export type ChartSpec = {
   showValue?: boolean;
   valueSuffix?: string;
   valAxisSuffix?: string; // 값(Y)축 라벨 접미사(예: "%")
+  valAxisTitle?: string; // 값(Y)축 제목(세로 표기)
   holeSize?: number; // doughnut (%)
   strokeColor?: string; // doughnut 슬라이스 테두리색(hex, no '#'). 미지정 시 흰색.
   areaGradient?: boolean;
@@ -114,7 +124,7 @@ export type El =
     } & Box)
   | ({ kind: "image"; src: string; contain?: boolean } & Box)
   | ({ kind: "asset"; asset: "map" | "icon"; tag: string; color?: string; mapData?: MemberStatsData | null } & Box)
-  | ({ kind: "table"; colW: number[]; rows: Cell[][]; rowH?: number[]; borderColor?: string; fontFace?: string } & Box)
+  | ({ kind: "table"; colW: number[]; rows: Cell[][]; rowH?: number[]; borderColor?: string; fontFace?: string; tightCells?: boolean } & Box)
   | ({ kind: "chart"; chart: ChartSpec } & Box);
 
 export type SlideSpec = {
@@ -325,7 +335,7 @@ function hospitalSpec(theme: ThemePair, gada: GadaExcelData | null): SlideSpec {
 
   const els: El[] = [
     ...title("병원별 예약 현황"),
-    { kind: "chart", x: M - 18 / PX_PER_IN, y: BODY_Y + 0.3, w: chartW + 18 / PX_PER_IN, h: BODY_H - 0.3, chart: { kind: "bar", labels: cats, series: [{ name: "예약 비율", values: vals }], colors: cats.map(() => hex(theme.main)), legend: "none", showValue: true, valueSuffix: "%", valAxisSuffix: "%", lightGrid: true, valuePosition: "bottom" } },
+    { kind: "chart", x: M - 18 / PX_PER_IN, y: BODY_Y + 0.3, w: chartW + 18 / PX_PER_IN, h: BODY_H - 0.3, chart: { kind: "bar", labels: cats, series: [{ name: "예약 비율", values: vals }], colors: cats.map(() => hex(theme.main)), legend: "none", showValue: true, valueSuffix: "%", valAxisSuffix: "%", valAxisTitle: "예약 비율(%)", lightGrid: true, valuePosition: "top" } },
     { kind: "text", x: lx, y: BODY_Y, w: lw, h: 0.3, runs: [{ text: `기타 병원 (${gada.otherHospitals.length}개)`, bold: true, color: DARK, size: 11 }], fontFace: FONT },
   ];
   const listRuns = (arr: string[]): Run[] => [{ text: arr.join("\n"), color: "374151", size: 10 }];
@@ -505,7 +515,7 @@ function memberGenderAgeSpec(theme: ThemePair, data: MemberStatsData | null): Sl
   return {
     els: [
       ...title("로그인 회원 성별/연령대 기준", "PV 현황"),
-      { kind: "table", x: tableX, y: BODY_Y, w: tableW, h: BODY_H - 0.3, colW: [1.2, ...Array(21).fill((tableW - 2.2) / 21), 1.0], rows, borderColor: GREY_BORDER, fontFace: FONT },
+      { kind: "table", x: tableX, y: BODY_Y, w: tableW, h: BODY_H - 0.3, colW: [1.2, ...Array(21).fill((tableW - 2.2) / 21), 1.0], rows, borderColor: GREY_BORDER, fontFace: FONT, tightCells: true },
     ],
   };
 }
@@ -570,7 +580,9 @@ function ageCtrSpec(theme: ThemePair, gender: "male" | "female", gada: GadaExcel
   const ratioSum = ratio.reduce((s, v) => s + v, 0);
   const donutPct = ratio.map((r) => (ratioSum > 0 ? parseFloat(((r * 100) / ratioSum).toFixed(1)) : 0));
   const barValues = AGE_KEYS.map((k) => curGA[k]);
-  const sliceColors = [accent, hex(theme.main), hex(theme.sub), "9CA3AF", "E5E7EB", "D1D5DB"];
+  // 20대 슬라이스: 메인/서브의 tint(밝게) 색. (아이콘·증감률 텍스트는 원색 accent 유지)
+  const tintedAccent = tint(accent, 0.4);
+  const sliceColors = [tintedAccent, hex(theme.main), hex(theme.sub), "9CA3AF", "E5E7EB", "D1D5DB"];
 
   const leftW = BODY_W * 0.42;
   const donutH = BODY_H - 0.3 - 0.95;
@@ -597,11 +609,17 @@ function ageCtrSpec(theme: ThemePair, gender: "male" | "female", gada: GadaExcel
         runs: [
           { text: `${gLabel} 총 접속자 수     `, bold: true, color: DARK },
           { text: `${mm(prevM)}월: ${prevTotal != null ? fmtNum(prevTotal) : "—"}  →  ${mm(M_)}월: ${fmtNum(curTotal)}     `, color: "374151" },
-          { text: growth != null ? `${growth >= 0 ? "▲" : "▼"} ${Math.abs(growth)}%` : "—", bold: true, color: accent },
+          { text: growth != null ? `${growth >= 0 ? "▲" : "▼"} ${Math.abs(growth)}%` : "—", bold: true, color: accent, size: 14 },
         ],
       },
-      { kind: "text", x: rx, y: bodyY + boxH + 0.15, w: rw, h: 0.25, runs: [{ text: `연령별 접속자 수 (Total: ${fmtNum(curTotal)})`, bold: true, color: DARK, size: 11 }], fontFace: FONT },
-      { kind: "chart", x: rx, y: bodyY + boxH + 0.45, w: rw, h: BODY_H - boxH - 0.55, chart: { kind: "bar", labels: AGE_LABELS, series: [{ name: "접속자 수", values: barValues }], colors: sliceColors, legend: "none", showValue: true, lightGrid: true } },
+      {
+        kind: "text", x: rx, y: bodyY + boxH + 0.15, w: rw, h: 0.5, align: "left", valign: "top", fontFace: FONT,
+        runs: [
+          { text: "연령별 접속자 수\n", bold: true, color: DARK, size: 11 },
+          { text: `Total: ${fmtNum(curTotal)}`, color: "374151", size: 9 },
+        ],
+      },
+      { kind: "chart", x: rx, y: bodyY + boxH + 0.7, w: rw, h: BODY_H - boxH - 0.8, chart: { kind: "bar", labels: AGE_LABELS, series: [{ name: "접속자 수", values: barValues }], colors: sliceColors, legend: "none", showValue: true, lightGrid: true } },
     ],
   };
 }
@@ -647,11 +665,12 @@ function geneticSpec(theme: ThemePair): SlideSpec {
     { text: "  별도 추가 안내 )", color: GREY_TEXT, size: 9 },
   ];
 
+  const bodyY = BODY_Y + 24 / PX_PER_IN; // 표·문구만 아래로 24px (제목은 고정)
   return {
     els: [
       ...title("한컴Gx 유전자 검사 결과지 컨텐츠 현황"),
-      { kind: "table", x: tableX, y: BODY_Y, w: tableW, h: tableH, colW, rowH, rows, borderColor: GREY_BORDER, fontFace: FONT },
-      { kind: "text", x: tableX, y: BODY_Y + tableH + 0.2, w: tableW, h: 0.7, runs: noteRuns, align: "left", valign: "top", fontFace: FONT, lineSpacingMultiple: 1.3 },
+      { kind: "table", x: tableX, y: bodyY, w: tableW, h: tableH, colW, rowH, rows, borderColor: GREY_BORDER, fontFace: FONT },
+      { kind: "text", x: tableX, y: bodyY + tableH + 0.2, w: tableW, h: 0.7, runs: noteRuns, align: "left", valign: "top", fontFace: FONT, lineSpacingMultiple: 1.3 },
     ],
   };
 }
