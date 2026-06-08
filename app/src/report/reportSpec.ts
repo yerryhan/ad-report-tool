@@ -110,6 +110,7 @@ export type Box = { x: number; y: number; w: number; h: number };
 export type El =
   | ({ kind: "rect"; fill?: string; radius?: number; line?: string } & Box)
   | ({ kind: "line"; color: string } & Box)
+  | ({ kind: "tri"; fill: string; dir?: "up" | "down" } & Box)
   | ({
       kind: "text";
       runs: Run[];
@@ -560,12 +561,24 @@ function memberRegionSpec(theme: ThemePair, data: MemberStatsData | null): Slide
   };
 }
 
-// ── 연령대 클릭률 ────────────────────────────────────────────────────────
-function ageCtrSpec(theme: ThemePair, gender: "male" | "female", gada: GadaExcelData | null, member: MemberStatsData | null, byMonth: Record<number, MemberStatsData>): SlideSpec {
+// 값 배열을 합이 정확히 100.0%가 되도록 소수 1자리 비율로 변환(최대잉여법).
+function toPct100(values: number[]): number[] {
+  const sum = values.reduce((s, v) => s + v, 0);
+  if (sum <= 0) return values.map(() => 0);
+  const scaled = values.map((v) => (v / sum) * 1000);
+  const floored = scaled.map((v) => Math.floor(v));
+  const rest = 1000 - floored.reduce((s, v) => s + v, 0);
+  const order = scaled.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
+  for (let j = 0; j < rest; j++) floored[order[j].i] += 1;
+  return floored.map((v) => v / 10);
+}
+
+// ── 연령대 기준 접속자 비율 ──────────────────────────────────────────────
+function ageCtrSpec(theme: ThemePair, gender: "male" | "female", _gada: GadaExcelData | null, member: MemberStatsData | null, byMonth: Record<number, MemberStatsData>): SlideSpec {
   const gLabel = gender === "male" ? "남성" : "여성";
   const accent = gender === "male" ? hex(theme.main) : hex(theme.sub);
   const base: El[] = [...title("로그인 회원 연령대 기준", `광고 클릭률 현황(${gLabel})`)];
-  if (!gada || !member) return { els: [...base, emptyBody("필요한 데이터가 없습니다")] };
+  if (!member) return { els: [...base, emptyBody("필요한 데이터가 없습니다")] };
 
   const sumAge = (g: MemberAgeCounts) => AGE_KEYS.reduce((s, k) => s + g[k], 0);
   const M_ = member.month;
@@ -575,14 +588,16 @@ function ageCtrSpec(theme: ThemePair, gender: "male" | "female", gada: GadaExcel
   const curTotal = sumAge(curGA);
   const prevTotal = prevGA ? sumAge(prevGA) : null;
   const growth = prevTotal != null && prevTotal > 0 ? Math.round(((curTotal - prevTotal) / prevTotal) * 100) : null;
-  const visitors = gender === "male" ? gada.ageVisitorMale : gada.ageVisitorFemale;
-  const ratio = AGE_KEYS.map((k) => (visitors[k] > 0 ? curGA[k] / visitors[k] : 0));
-  const ratioSum = ratio.reduce((s, v) => s + v, 0);
-  const donutPct = ratio.map((r) => (ratioSum > 0 ? parseFloat(((r * 100) / ratioSum).toFixed(1)) : 0));
   const barValues = AGE_KEYS.map((k) => curGA[k]);
-  // 20대 슬라이스: 메인/서브의 tint(밝게) 색. (아이콘·증감률 텍스트는 원색 accent 유지)
-  const tintedAccent = tint(accent, 0.4);
-  const sliceColors = [tintedAccent, hex(theme.main), hex(theme.sub), "9CA3AF", "E5E7EB", "D1D5DB"];
+  const donutPct = toPct100(barValues);
+  const maxValue = Math.max(...barValues);
+  const maxIndex = maxValue > 0 ? barValues.indexOf(maxValue) : -1;
+  // 연령대 슬라이스 색(도넛·막대·범례 공통, 웹 SLICE_COLORS와 동일):
+  //  남성 = [tint메인0.5, 메인, 서브, 그레이400/200/300]
+  //  여성 = [tint서브0.7(파스텔), 서브, tint서브0.4(밝은 서브), 그레이400/200/300]
+  const sliceColors = gender === "male"
+    ? [tint(hex(theme.main), 0.5), hex(theme.main), hex(theme.sub), "9CA3AF", "E5E7EB", "D1D5DB"]
+    : [tint(hex(theme.sub), 0.7), hex(theme.sub), tint(hex(theme.sub), 0.4), "9CA3AF", "E5E7EB", "D1D5DB"];
 
   const leftW = BODY_W * 0.42;
   const donutH = BODY_H - 0.3 - 0.95;
@@ -593,13 +608,31 @@ function ageCtrSpec(theme: ThemePair, gender: "male" | "female", gada: GadaExcel
   const legendStr = AGE_LABELS.map((l, i) => `${l} ${donutPct[i]}%`).join("     ");
   const bodyY = BODY_Y + 24 / PX_PER_IN; // 시각화 전체를 아래로 24px 이동(제목 제외)
 
+  // 우하단 막대 차트 박스 + "최대 접속 연령" 말풍선(웹 BarChartWithMaxLabel 대응).
+  // 네이티브 차트라 막대 정확 좌표를 알 수 없어 플롯 영역을 추정해 최대 막대 위에 띄운다.
+  const barX = rx;
+  const barY = bodyY + boxH + 0.7;
+  const barW = rw;
+  const barH = BODY_H - boxH - 0.8;
+  const maxLabelEls: El[] = [];
+  if (maxIndex >= 0) {
+    const plotLeft = barX + 0.45; // 좌측 값(Y)축 라벨 폭 추정
+    const plotW = barW - 0.55; // 좌 0.45 + 우 0.1 여백 제외
+    const cx = plotLeft + (maxIndex + 0.5) * (plotW / AGE_LABELS.length);
+    const bw = 1.15, bh = 0.28, th = 0.1, by = barY + 0.02;
+    maxLabelEls.push(
+      { kind: "rect", x: cx - bw / 2, y: by, w: bw, h: bh, fill: hex(theme.sub), radius: 0.06 },
+      { kind: "text", x: cx - bw / 2, y: by, w: bw, h: bh, runs: [{ text: "최대 접속 연령", bold: true, color: "000000", size: 9 }], align: "center", valign: "middle", fontFace: FONT },
+      { kind: "tri", x: cx - 0.07, y: by + bh - 0.01, w: 0.14, h: th, fill: hex(theme.sub), dir: "down" },
+    );
+  }
+
   return {
     els: [
       ...base,
-      { kind: "text", x: M, y: bodyY, w: leftW, h: 0.25, runs: [{ text: "연령대별 클릭률", bold: true, color: DARK, size: 11 }], fontFace: FONT },
       {
         kind: "chart", x: M, y: bodyY + 0.3, w: leftW, h: donutH,
-        chart: { kind: "doughnut", labels: AGE_LABELS, series: [{ name: "클릭률", values: donutPct }], colors: sliceColors, legend: "none", showValue: true, holeSize: 58, valueSuffix: "%", centerText: [{ text: `${gLabel} 연령대별\n`, bold: true, color: DARK, size: 11 }, { text: "디스플레이 광고 관심도", bold: true, color: GREY_TEXT, size: 9 }] },
+        chart: { kind: "doughnut", labels: AGE_LABELS, series: [{ name: "접속자 비율", values: donutPct }], colors: sliceColors, legend: "none", showValue: true, holeSize: 58, valueSuffix: "%", centerText: [{ text: `${gLabel} 연령대별\n`, bold: true, color: DARK, size: 11 }, { text: "디스플레이 광고 관심도", bold: true, color: GREY_TEXT, size: 9 }] },
       },
       { kind: "text", x: M, y: bodyY + 0.3 + donutH + 0.05, w: leftW, h: 0.85, runs: [{ text: legendStr, color: "374151", size: 9 }], align: "center", valign: "top", fontFace: FONT },
       { kind: "rect", x: rx, y: bodyY, w: rw, h: boxH, fill: GREY_100, radius: 0.06 },
@@ -619,7 +652,8 @@ function ageCtrSpec(theme: ThemePair, gender: "male" | "female", gada: GadaExcel
           { text: `Total: ${fmtNum(curTotal)}`, color: "374151", size: 9 },
         ],
       },
-      { kind: "chart", x: rx, y: bodyY + boxH + 0.7, w: rw, h: BODY_H - boxH - 0.8, chart: { kind: "bar", labels: AGE_LABELS, series: [{ name: "접속자 수", values: barValues }], colors: sliceColors, legend: "none", showValue: true, lightGrid: true } },
+      { kind: "chart", x: barX, y: barY, w: barW, h: barH, chart: { kind: "bar", labels: AGE_LABELS, series: [{ name: "접속자 수", values: barValues }], colors: sliceColors, legend: "none", showValue: true, lightGrid: true } },
+      ...maxLabelEls,
     ],
   };
 }
@@ -635,7 +669,8 @@ function geneticSpec(theme: ThemePair): SlideSpec {
   const period = reportDateRange();
   const sz = 9;
   const headCell = (text: string, extra: Partial<Cell> = {}): Cell => ({ text, fill: main, color: WHITE, extraBold: true, align: "center", valign: "middle", size: sz, ...extra });
-  const groupCell = (text: string): Cell => ({ text: nlSlash(text), fill: GREY_300, color: "000000", extraBold: true, align: "center", valign: "middle", size: sz });
+  // "만성폐쇄성/폐질환"만 글자가 길어 셀을 넘쳐 1pt 줄임.
+  const groupCell = (text: string): Cell => ({ text: nlSlash(text), fill: GREY_300, color: "000000", extraBold: true, align: "center", valign: "middle", size: text === "만성폐쇄성/폐질환" ? sz - 1 : sz });
   const labelCell = (text: string): Cell => ({ text, fill: GREY_100, color: "000000", extraBold: true, align: "center", valign: "middle", size: sz });
   const dataRow = (label: string): Cell[] => [labelCell(label), ...Array.from({ length: 16 }, () => ({ text: "1,000", fill: WHITE, color: "000000", align: "center" as Align, valign: "middle" as VAlign, size: sz }))];
 

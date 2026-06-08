@@ -54,6 +54,21 @@ function contrastText(hex: string): string {
 const sumAge = (g: MemberAgeCounts) => AGE_KEYS.reduce((s, k) => s + g[k], 0);
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 
+// 값 배열을 합이 정확히 100.0%가 되도록 소수 1자리 비율로 변환(최대잉여법).
+// 단순 반올림은 표시값 합이 99.9/100.1%로 어긋날 수 있어 잉여분을 소수부 큰 순서로 배분한다.
+function toPct100(values: number[]): number[] {
+  const sum = values.reduce((s, v) => s + v, 0);
+  if (sum <= 0) return values.map(() => 0);
+  const scaled = values.map((v) => (v / sum) * 1000); // 0.1% 단위로 환산
+  const floored = scaled.map((v) => Math.floor(v));
+  const rest = 1000 - floored.reduce((s, v) => s + v, 0);
+  const order = scaled
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let j = 0; j < rest; j++) floored[order[j].i] += 1;
+  return floored.map((v) => v / 10); // 0.1% 단위 → %
+}
+
 // ── 반응형 도넛: 컨테이너에 맞춰 정사각형으로 ────────────────────────────
 function ResponsiveDonut({
   chartKey,
@@ -194,7 +209,7 @@ type Gender = "male" | "female";
 // ── 한 페이지(슬라이드): 성별별 연령대 클릭률 현황 ────────────────────────
 function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) {
   const { currentTheme } = useColorTheme();
-  const { gadaData, memberStatsData, memberStatsByMonth } = useGadaData();
+  const { memberStatsData, memberStatsByMonth } = useGadaData();
 
   const genderLabel = gender === "male" ? "남성" : "여성";
 
@@ -223,8 +238,8 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
           GREY_300,
         ];
 
-  // 도넛(클릭률)·총PV·막대는 가다실(클릭수)+회원통계(PV) 둘 다 필요
-  if (!gadaData || !memberStatsData) {
+  // 도넛·총PV·막대 모두 회원통계(연령별 PV)만으로 계산
+  if (!memberStatsData) {
     return (
       <SlideFrame
         title={`로그인 회원 연령대 기준 - 광고 클릭률 현황(${genderLabel})`}
@@ -258,18 +273,13 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
       : null;
   const up = growth != null && growth >= 0;
 
-  // ── 연령대별 디스플레이 광고 관심도 (도넛 표시값) ───────────────────────
-  // ratio_g = 연령대별 (남성 총 PV ÷ 남성 순방문자수). PV=회원통계, 순방문자수=가다실.
-  // a = Σ ratio_g, 도넛 표시값 = ratio_g × 100 / a  (전체 합 = 100%)
-  const visitors = gender === "male" ? gadaData.ageVisitorMale : gadaData.ageVisitorFemale;
-  const ratio = AGE_KEYS.map((k) => (visitors[k] > 0 ? curGA[k] / visitors[k] : 0));
-  const ratioSum = ratio.reduce((s, v) => s + v, 0);
-  const donutPct = ratio.map((r) => (ratioSum > 0 ? (r * 100) / ratioSum : 0));
-
-  // ── 연령별 접속자 수(PV) 막대값 + 최대 막대 ─────────────────────────────
+  // ── 연령별 접속자 수(회원 PV) 막대값 + 최대 막대 ────────────────────────
   const barValues = AGE_KEYS.map((k) => curGA[k]);
   const maxValue = Math.max(...barValues);
   const maxIndex = maxValue > 0 ? barValues.indexOf(maxValue) : -1;
+
+  // ── 도넛 표시값: 연령별 접속자 수를 합이 정확히 100%가 되도록 정규화 ─────
+  const donutPct = toPct100(barValues);
 
   const chartKey = `${gender}-${currentTheme.name}-${M}`;
 
@@ -372,9 +382,6 @@ function AgeCtrSlide({ gender, border }: { gender: Gender; border: "b" | "t" }) 
 
         {/* ── 왼쪽: 연령대별 클릭률 도넛 ─────────────────────────────── */}
         <div className="w-[40%] min-h-0 flex flex-col pr-6 pt-5 border-r border-gray-100 dark:border-gray-700">
-          <h2 className="shrink-0 text-sm font-bold text-gray-800 dark:text-white">
-            연령대별 클릭률
-          </h2>
           <ResponsiveDonut
             chartKey={`donut-${chartKey}`}
             options={donutOptions}

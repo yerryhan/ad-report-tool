@@ -203,6 +203,15 @@ async function renderSlide(
       case "line":
         slide.addShape("line", { ...box, line: { color: el.color, width: 1 } });
         break;
+      case "tri":
+        // 정삼각형(기본 위쪽). dir:"down"이면 180° 회전해 아래로 향함(말풍선 꼬리).
+        slide.addShape("triangle", {
+          ...box,
+          fill: { color: el.fill },
+          line: { type: "none" },
+          ...(el.dir === "down" ? { rotate: 180 } : {}),
+        });
+        break;
       case "text":
         slide.addText(runsToProps(el.runs, { size: el.size, color: el.color }), {
           ...box, align: el.align ?? "left", valign: el.valign ?? "top",
