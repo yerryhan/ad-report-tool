@@ -137,17 +137,35 @@ function computeGenderStats(reservations: ReservationRow[]): GenderStats {
   };
 }
 
-// ── 실제 파일 기준 연령대 열 위치: idx 1-7 (A열=레이블, B-H=연령대) ──
-function parseAgeRow(row: unknown[]): AgeGroupData {
+// ── 연령대 행 파싱: 레이블("가다실") 열 다음부터 7칸이 20대~합계 ──
+// labelCol = "가다실"이 있는 열. 그 우측으로 1~7칸이 연령대·합계.
+function parseAgeRow(row: unknown[], labelCol: number): AgeGroupData {
   return {
-    age20: toNum(row[1]),
-    age30: toNum(row[2]),
-    age40: toNum(row[3]),
-    age50: toNum(row[4]),
-    age60: toNum(row[5]),
-    etc:   toNum(row[6]),
-    total: toNum(row[7]),
+    age20: toNum(row[labelCol + 1]),
+    age30: toNum(row[labelCol + 2]),
+    age40: toNum(row[labelCol + 3]),
+    age50: toNum(row[labelCol + 4]),
+    age60: toNum(row[labelCol + 5]),
+    etc:   toNum(row[labelCol + 6]),
+    total: toNum(row[labelCol + 7]),
   };
+}
+
+// ── 헤더 라벨의 (행, 열) 좌표를 시트 전체에서 탐지 ─────────────────────
+// 열 위치를 하드코딩하지 않고 라벨로 앵커를 찾는다(파일이 몇 칸 밀려 들어와도 견딤).
+// 못 찾으면 { row: -1, col: -1 }.
+function findLabel(
+  rows: unknown[][],
+  label: string
+): { row: number; col: number } {
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r) continue;
+    for (let c = 0; c < r.length; c++) {
+      if (String(r[c] ?? '').trim() === label) return { row: i, col: c };
+    }
+  }
+  return { row: -1, col: -1 };
 }
 
 export function parseGadaExcel(file: File): Promise<GadaExcelData> {
@@ -167,69 +185,61 @@ export function parseGadaExcel(file: File): Promise<GadaExcelData> {
         const month = extractMonth(file.name);
 
         // ── 데이터 영역 1: "가다실" 레이블 행을 동적 탐지 ───────────────
-        // 실제 파일: A열(idx 0)이 "가다실"인 행이 4개 순서대로 존재
-        // [0]=남성클릭, [1]=여성클릭, [2]=남성방문자, [3]=여성방문자
-        const gadaRows = rows.filter(
-          (r) => String(r[0] ?? '').trim() === '가다실'
-        );
+        // "가다실"이 있는 열(gadaCol)을 먼저 찾고, 그 열에 "가다실"이 든
+        // 행 4개를 순서대로 사용: [0]=남성클릭 [1]=여성클릭 [2]=남성방문자 [3]=여성방문자.
+        // 연령대·합계는 gadaCol 우측 1~7칸(parseAgeRow가 오프셋으로 읽음).
+        const gadaAnchor = findLabel(rows, '가다실');
+        const gadaCol = gadaAnchor.col;
+        const gadaRows =
+          gadaCol >= 0
+            ? rows.filter((r) => String(r[gadaCol] ?? '').trim() === '가다실')
+            : [];
 
-        const ageClickMale    = parseAgeRow(gadaRows[0] ?? []);
-        const ageClickFemale  = parseAgeRow(gadaRows[1] ?? []);
-        const ageVisitorMale  = parseAgeRow(gadaRows[2] ?? []);
-        const ageVisitorFemale = parseAgeRow(gadaRows[3] ?? []);
+        const ageClickMale    = parseAgeRow(gadaRows[0] ?? [], gadaCol);
+        const ageClickFemale  = parseAgeRow(gadaRows[1] ?? [], gadaCol);
+        const ageVisitorMale  = parseAgeRow(gadaRows[2] ?? [], gadaCol);
+        const ageVisitorFemale = parseAgeRow(gadaRows[3] ?? [], gadaCol);
 
         // ── 데이터 영역 2: 기예약자 목록 ─────────────────────────────────
-        // 실제 열 위치 (0-based):
-        //   L(11)=이름  M(12)=기업  N(13)=생년월일(YYYY)  O(14)=성별(F/M)
-        //   P(15)=예약시간  Q(16)=예약병원  R(17)=예약현황
-        let area2DataStart = -1;
-        for (let i = 0; i < rows.length; i++) {
-          if (String(rows[i][11] ?? '').trim() === '이름') {
-            area2DataStart = i + 1;
-            break;
-          }
-        }
-
+        // "이름" 헤더 셀을 동적 탐지. 헤더 우측 0~6칸이 각 필드:
+        //   +0 이름  +1 기업  +2 생년월일(YYYY)  +3 성별(F/M)
+        //   +4 예약시간  +5 예약병원  +6 예약현황
+        const nameHeader = findLabel(rows, '이름');
         const reservations: ReservationRow[] = [];
-        if (area2DataStart > 0) {
-          for (let i = area2DataStart; i < rows.length; i++) {
-            const name = String(rows[i][11] ?? '').trim();
+        if (nameHeader.row >= 0) {
+          const c = nameHeader.col;
+          for (let i = nameHeader.row + 1; i < rows.length; i++) {
+            const name = String(rows[i][c] ?? '').trim();
             if (!name) continue; // 빈 행 건너뜀(side-by-side 구조)
             reservations.push({
               maskedName:      maskName(name),
-              company:         String(rows[i][12] ?? ''),
-              birthYear:       maskBirth(rows[i][13]),    // N열
-              gender:          String(rows[i][14] ?? ''), // O열
-              reservationTime: excelSerialToDateStr(rows[i][15]),
-              hospital:        String(rows[i][16] ?? '').trim(),
-              status:          String(rows[i][17] ?? ''),
+              company:         String(rows[i][c + 1] ?? ''),
+              birthYear:       maskBirth(rows[i][c + 2]),
+              gender:          String(rows[i][c + 3] ?? ''),
+              reservationTime: excelSerialToDateStr(rows[i][c + 4]),
+              hospital:        String(rows[i][c + 5] ?? '').trim(),
+              status:          String(rows[i][c + 6] ?? ''),
             });
           }
         }
 
         // ── 데이터 영역 3: 고객사별 검진 예약율 ──────────────────────────
-        // 실제 열 위치:
-        //   T(19)=고객사명  U(20)=검진예약율  V(21)=검진유형 예약건수
-        //   W(22)=본인부담 예약건수  X(23)=합계
-        let area3DataStart = -1;
-        for (let i = 0; i < rows.length; i++) {
-          if (String(rows[i][19] ?? '').trim() === '고객사명') {
-            area3DataStart = i + 1;
-            break;
-          }
-        }
-
+        // "고객사명" 헤더 셀을 동적 탐지. 헤더 우측 0~4칸이 각 필드:
+        //   +0 고객사명  +1 검진예약율  +2 검진유형 예약건수
+        //   +3 본인부담 예약건수  +4 합계
+        const companyHeader = findLabel(rows, '고객사명');
         const companyStats: CompanyStatRow[] = [];
-        if (area3DataStart > 0) {
-          for (let i = area3DataStart; i < rows.length; i++) {
-            const company = String(rows[i][19] ?? '').trim();
+        if (companyHeader.row >= 0) {
+          const c = companyHeader.col;
+          for (let i = companyHeader.row + 1; i < rows.length; i++) {
+            const company = String(rows[i][c] ?? '').trim();
             if (!company) continue;
             companyStats.push({
               companyName:     company,
-              reservationRate: rows[i][20] as string | number,
-              examTypeCount:   toNum(rows[i][21]),
-              selfPayCount:    toNum(rows[i][22]),
-              total:           toNum(rows[i][23]),
+              reservationRate: rows[i][c + 1] as string | number,
+              examTypeCount:   toNum(rows[i][c + 2]),
+              selfPayCount:    toNum(rows[i][c + 3]),
+              total:           toNum(rows[i][c + 4]),
             });
           }
         }
