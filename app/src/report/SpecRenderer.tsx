@@ -14,6 +14,8 @@ import {
 } from "./reportSpec";
 import { KoreaMap } from "../pages/Display/MemberPv";
 import { GroupIcon } from "../icons";
+import { useColorTheme } from "../context/ColorThemeContext";
+import { bgHueRotateDeg } from "./bgTheme";
 
 // HTML 미리보기 렌더러 — spec 을 1280×720(px) 캔버스에 절대배치.
 // inch → px(×96), pt → px(×96/72). 차트는 ApexCharts(근사), 지도/아이콘은 실제 컴포넌트.
@@ -278,12 +280,26 @@ export function SpecSlideCard({ spec }: { spec: SlideSpec }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const bgStyle: React.CSSProperties = spec.bg?.src
-    ? { backgroundImage: `url(${spec.bg.src})`, backgroundSize: "cover", backgroundPosition: "center" }
-    : { background: spec.bg?.color ? c(spec.bg.color) : "#fff" };
+  const { currentTheme } = useColorTheme();
+  const deg = spec.bg?.src ? bgHueRotateDeg(currentTheme.main) : 0;
   return (
     <div ref={ref} className="w-full overflow-hidden rounded shadow-md bg-white" style={{ aspectRatio: "16 / 9" }}>
-      <div style={{ width: BASE_W, height: BASE_H, transformOrigin: "top left", transform: `scale(${scale})`, position: "relative", ...bgStyle }}>
+      <div
+        style={{
+          width: BASE_W, height: BASE_H, transformOrigin: "top left", transform: `scale(${scale})`,
+          position: "relative", background: spec.bg?.color ? c(spec.bg.color) : "#fff",
+        }}
+      >
+        {spec.bg?.src && (
+          // 배경 그라데이션은 별도 레이어로 분리해 hue-rotate 필터가 본문(글자/로고)에는 적용되지 않도록 함.
+          <div
+            style={{
+              position: "absolute", inset: 0,
+              backgroundImage: `url(${spec.bg.src})`, backgroundSize: "cover", backgroundPosition: "center",
+              filter: deg ? `hue-rotate(${deg}deg)` : undefined,
+            }}
+          />
+        )}
         <SlideEls spec={spec} />
       </div>
     </div>

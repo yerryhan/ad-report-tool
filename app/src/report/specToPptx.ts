@@ -9,6 +9,7 @@ import {
   type Run,
   type ChartSpec,
 } from "./reportSpec";
+import { bgHueRotateDeg, recolorBgDataUrl } from "./bgTheme";
 
 // ════════════════════════════════════════════════════════════════════════
 //  공유 사양(SlideSpec[]) → 편집 가능한 네이티브 PPTX
@@ -275,10 +276,15 @@ export async function exportReportPptx(data: ReportData, fileName: string): Prom
   }
   const origin = window.location.origin;
   const imgMap = new Map<string, string>();
+  const bgSrcs = new Set<string>();
+  for (const s of slides) if (s.bg?.src) bgSrcs.add(s.bg.src);
+  const deg = bgHueRotateDeg(data.theme.main);
   await Promise.all(
     [...srcs].map(async (src) => {
       const d = await fetchDataUrl(src.startsWith("http") ? src : origin + src);
-      if (d) imgMap.set(src, d);
+      if (!d) return;
+      // 배경 그라데이션 PNG는 테마 색상에 맞춰 hue-rotate 재색.
+      imgMap.set(src, bgSrcs.has(src) ? await recolorBgDataUrl(d, deg) : d);
     })
   );
   const assetMap = new Map<string, string>();
